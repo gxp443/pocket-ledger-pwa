@@ -1,0 +1,19 @@
+{
+  "name": "Pocket Ledger",
+  "short_name": "Ledger",
+  "description": "一个适合安装到 iPhone 主屏幕的极简记账 PWA。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4ecde",
+  "theme_color": "#17312c",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "icons/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
