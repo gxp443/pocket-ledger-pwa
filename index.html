@@ -17,21 +17,38 @@
     <div class="grain"></div>
     <main class="app-shell">
       <section class="app-view is-active" data-app-view="home">
-        <section class="hero">
-          <div>
+        <section class="hero hero--compact">
+          <div class="hero-main">
             <p class="eyebrow">Pocket Ledger</p>
-            <h1>给自己用的轻量智能记账页</h1>
+            <h1>三秒记一笔，别被记账本身拖住。</h1>
             <p class="hero-copy">
-              主屏幕安装、离线可用、支持一句中文快记。常用支出一键落账，账户、分类、预算都能自己控。
+              主屏幕安装、离线可用、支持一句中文快记。首页只放高频动作，复杂设置都收进后面的页签里。
             </p>
           </div>
-          <div class="hero-badge" id="installHint">
-            <span>主屏幕模式</span>
-            <strong>适合自己长期用</strong>
+          <div class="hero-side">
+            <div class="hero-badge" id="installHint">
+              <span>主屏幕模式</span>
+              <strong>适合自己长期用</strong>
+            </div>
+
+            <section class="year-strip" aria-label="年度汇总">
+              <article class="year-chip">
+                <span>年支出</span>
+                <strong id="yearExpense">¥0.00</strong>
+              </article>
+              <article class="year-chip">
+                <span>年收入</span>
+                <strong id="yearIncome">¥0.00</strong>
+              </article>
+              <article class="year-chip">
+                <span>年结余</span>
+                <strong id="yearNet">¥0.00</strong>
+              </article>
+            </section>
           </div>
         </section>
 
-        <section class="summary-grid" aria-label="总览">
+        <section class="summary-grid summary-grid--focus" aria-label="总览">
           <article class="summary-card summary-card--expense">
             <span>本月支出</span>
             <strong id="monthExpense">¥0.00</strong>
@@ -44,21 +61,9 @@
             <span>预算剩余</span>
             <strong id="monthBudgetLeft">¥0.00</strong>
           </article>
-          <article class="summary-card">
-            <span>年度支出</span>
-            <strong id="yearExpense">¥0.00</strong>
-          </article>
-          <article class="summary-card">
-            <span>年度收入</span>
-            <strong id="yearIncome">¥0.00</strong>
-          </article>
-          <article class="summary-card">
-            <span>年度结余</span>
-            <strong id="yearNet">¥0.00</strong>
-          </article>
         </section>
 
-        <section class="app-jump-strip" aria-label="快捷跳转">
+        <section class="app-jump-strip app-jump-strip--compact" aria-label="快捷跳转">
           <button class="app-jump-button" type="button" data-app-view-target="ledger">
             <span>账本</span>
             <strong>继续编辑和翻页</strong>
@@ -272,8 +277,8 @@
       <section class="app-view" data-app-view="insights">
         <section class="view-headline">
           <p class="eyebrow">Insights</p>
-          <h2>消费 / 收入图标查看</h2>
-          <p class="muted">专门用来看分类和账户分布，分析页默认沿用账本页当前的筛选条件。</p>
+          <h2>只看重点</h2>
+          <p class="muted">这里不做复杂图表，只保留你真的会看的分类和账户分布。</p>
         </section>
 
         <section class="panel insights">
@@ -301,229 +306,232 @@
               <div class="account-board" id="accountBoard"></div>
             </section>
           </div>
-        </section>
 
-        <section class="panel note-panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">Reality Check</p>
-              <h2>这套方案自动到什么程度</h2>
-            </div>
+          <div class="insights-footnote">
+            自动化能力目前停在一句话快记和快捷指令自动落账，纯 PWA 依然不能后台抓银行或支付通知。
           </div>
-          <ul class="note-list">
-            <li>能做到一句话快记、常用支出一键记账、快捷指令自动落账。</li>
-            <li>能维护自定义分类、银行卡/信用卡、月预算与当月/年度汇总。</li>
-            <li>纯 PWA 依然不能直接后台抓取银行通知、微信/支付宝账单。</li>
-            <li>如果你后面要更接近自动记账，最自然的升级路线是：快捷指令先解析通知，再把结果塞给这个 PWA。</li>
-          </ul>
         </section>
       </section>
 
       <section class="app-view" data-app-view="manage">
         <section class="view-headline">
           <p class="eyebrow">Manage</p>
-          <h2>分类、卡片、模板与备份</h2>
-          <p class="muted">不常改的配置单独放一页，平时记账时不再把整套设置堆在主流程里。</p>
+          <h2>低频设置收起来</h2>
+          <p class="muted">平时你只管记账，不常动的内容按组折叠，避免这一页变成长后台。</p>
         </section>
 
-        <section class="manage-grid">
-          <section class="panel">
-            <div class="panel-head">
-              <div>
+        <section class="manage-stack">
+          <details class="panel manage-section" open>
+            <summary class="manage-section-summary">
+              <div class="manage-section-copy">
+                <p class="eyebrow">Templates / Backup</p>
+                <h2>固定模板与备份</h2>
+                <p class="muted">这一组最常用，默认展开。</p>
+              </div>
+              <span class="manage-section-toggle">展开</span>
+            </summary>
+
+            <div class="manage-section-body">
+              <div class="panel-tools">
+                <button class="ghost-button" id="exportJsonButton" type="button">导出 JSON</button>
+                <button class="ghost-button" id="importJsonButton" type="button">导入 JSON</button>
+                <button class="ghost-button" id="carryoverButton" type="button">生成本月结转</button>
+              </div>
+
+              <div class="template-grid">
+                <form id="templateForm" class="template-form">
+                  <label class="field">
+                    <span>模板名</span>
+                    <input id="templateNameInput" type="text" maxlength="20" placeholder="例如：房租 / 会员月费" required />
+                  </label>
+                  <label class="field small-field">
+                    <span>类型</span>
+                    <select id="templateTypeInput">
+                      <option value="expense">支出</option>
+                      <option value="income">收入</option>
+                    </select>
+                  </label>
+                  <label class="field small-field">
+                    <span>金额</span>
+                    <input id="templateAmountInput" type="number" min="0" step="0.01" placeholder="199" inputmode="decimal" required />
+                  </label>
+                  <label class="field">
+                    <span>分类</span>
+                    <select id="templateCategoryInput"></select>
+                  </label>
+                  <label class="field">
+                    <span>账户</span>
+                    <select id="templateAccountInput"></select>
+                  </label>
+                  <label class="field field--wide">
+                    <span>标签</span>
+                    <input id="templateTagsInput" type="text" maxlength="60" placeholder="例如：固定支出,房租" />
+                  </label>
+                  <button class="ghost-button" type="submit">保存模板</button>
+                </form>
+
+                <div class="template-side">
+                  <div class="backup-reminder-row">
+                    <label class="field small-field">
+                      <span>备份提醒</span>
+                      <select id="backupReminderSelect">
+                        <option value="3">每 3 天</option>
+                        <option value="7" selected>每 7 天</option>
+                        <option value="14">每 14 天</option>
+                        <option value="30">每 30 天</option>
+                        <option value="0">关闭提醒</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="backup-health" id="backupHealth" aria-live="polite">
+                    <strong>还没有账本数据</strong>
+                    <span>等你开始记账后，这里会提醒你导出一份 JSON 备份。</span>
+                  </div>
+                  <div class="mini-note" id="backupStatus">
+                    JSON 备份会保存全部记录、分类、账户、模板和筛选设置。导入时会整体替换当前本地数据。
+                  </div>
+                  <div class="manage-list" id="templateList"></div>
+                </div>
+              </div>
+              <input id="jsonFileInput" type="file" accept="application/json,.json" hidden />
+            </div>
+          </details>
+
+          <details class="panel manage-section">
+            <summary class="manage-section-summary">
+              <div class="manage-section-copy">
                 <p class="eyebrow">Categories</p>
                 <h2>自定义分类</h2>
+                <p class="muted">可用于手动记录和中文文本识别。</p>
               </div>
-              <p class="muted">可用于手动记录和中文文本识别。</p>
-            </div>
+              <span class="manage-section-toggle">展开</span>
+            </summary>
 
-            <form id="categoryForm" class="manage-form">
-              <label class="field">
-                <span>分类名</span>
-                <input id="categoryLabelInput" type="text" maxlength="12" placeholder="例如：宠物" required />
-              </label>
-              <label class="field small-field">
-                <span>图标</span>
-                <input id="categoryIconInput" type="text" maxlength="2" placeholder="🐾" />
-              </label>
-              <label class="field small-field">
-                <span>类型</span>
-                <select id="categoryTypeInput">
-                  <option value="expense">支出</option>
-                  <option value="income">收入</option>
-                </select>
-              </label>
-              <label class="field field--wide">
-                <span>关键词</span>
-                <input id="categoryKeywordsInput" type="text" maxlength="60" placeholder="例如：猫粮,狗粮,宠物店" />
-              </label>
-              <button class="ghost-button" type="submit">添加分类</button>
-            </form>
-
-            <div class="manage-list" id="categoryList"></div>
-          </section>
-
-          <section class="panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">Accounts</p>
-                <h2>银行卡 / 信用卡管理</h2>
-              </div>
-              <p class="muted">支持现金、钱包、储蓄卡、信用卡。</p>
-            </div>
-
-            <form id="accountForm" class="manage-form">
-              <label class="field">
-                <span>卡片名</span>
-                <input id="accountNameInput" type="text" maxlength="16" placeholder="例如：工资卡" required />
-              </label>
-              <label class="field">
-                <span>银行 / 来源</span>
-                <input id="accountBankInput" type="text" maxlength="16" placeholder="例如：招商银行" />
-              </label>
-              <label class="field small-field">
-                <span>图标</span>
-                <input id="accountIconInput" type="text" maxlength="2" placeholder="💳" />
-              </label>
-              <label class="field small-field">
-                <span>类型</span>
-                <select id="accountTypeInput">
-                  <option value="credit">信用卡</option>
-                  <option value="debit">储蓄卡</option>
-                  <option value="wallet">电子钱包</option>
-                  <option value="cash">现金</option>
-                  <option value="other">其他</option>
-                </select>
-              </label>
-              <label class="field field--wide">
-                <span>关键词</span>
-                <input id="accountKeywordsInput" type="text" maxlength="60" placeholder="例如：招行,招商,掌上生活" />
-              </label>
-              <button class="ghost-button" type="submit">添加账户</button>
-            </form>
-
-            <div class="manage-list" id="accountList"></div>
-          </section>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">Templates</p>
-              <h2>固定账单模板与备份</h2>
-            </div>
-            <div class="panel-tools">
-              <button class="ghost-button" id="exportJsonButton" type="button">导出 JSON</button>
-              <button class="ghost-button" id="importJsonButton" type="button">导入 JSON</button>
-              <button class="ghost-button" id="carryoverButton" type="button">生成本月结转</button>
-            </div>
-          </div>
-
-          <div class="template-grid">
-            <form id="templateForm" class="template-form">
-              <label class="field">
-                <span>模板名</span>
-                <input id="templateNameInput" type="text" maxlength="20" placeholder="例如：房租 / 会员月费" required />
-              </label>
-              <label class="field small-field">
-                <span>类型</span>
-                <select id="templateTypeInput">
-                  <option value="expense">支出</option>
-                  <option value="income">收入</option>
-                </select>
-              </label>
-              <label class="field small-field">
-                <span>金额</span>
-                <input id="templateAmountInput" type="number" min="0" step="0.01" placeholder="199" inputmode="decimal" required />
-              </label>
-              <label class="field">
-                <span>分类</span>
-                <select id="templateCategoryInput"></select>
-              </label>
-              <label class="field">
-                <span>账户</span>
-                <select id="templateAccountInput"></select>
-              </label>
-              <label class="field field--wide">
-                <span>标签</span>
-                <input id="templateTagsInput" type="text" maxlength="60" placeholder="例如：固定支出,房租" />
-              </label>
-              <button class="ghost-button" type="submit">保存模板</button>
-            </form>
-
-            <div class="template-side">
-              <div class="backup-reminder-row">
+            <div class="manage-section-body">
+              <form id="categoryForm" class="manage-form">
+                <label class="field">
+                  <span>分类名</span>
+                  <input id="categoryLabelInput" type="text" maxlength="12" placeholder="例如：宠物" required />
+                </label>
                 <label class="field small-field">
-                  <span>备份提醒</span>
-                  <select id="backupReminderSelect">
-                    <option value="3">每 3 天</option>
-                    <option value="7" selected>每 7 天</option>
-                    <option value="14">每 14 天</option>
-                    <option value="30">每 30 天</option>
-                    <option value="0">关闭提醒</option>
+                  <span>图标</span>
+                  <input id="categoryIconInput" type="text" maxlength="2" placeholder="🐾" />
+                </label>
+                <label class="field small-field">
+                  <span>类型</span>
+                  <select id="categoryTypeInput">
+                    <option value="expense">支出</option>
+                    <option value="income">收入</option>
                   </select>
                 </label>
-              </div>
-              <div class="backup-health" id="backupHealth" aria-live="polite">
-                <strong>还没有账本数据</strong>
-                <span>等你开始记账后，这里会提醒你导出一份 JSON 备份。</span>
-              </div>
-              <div class="mini-note" id="backupStatus">
-                JSON 备份会保存全部记录、分类、账户、模板和筛选设置。导入时会整体替换当前本地数据。
-              </div>
-              <div class="manage-list" id="templateList"></div>
+                <label class="field field--wide">
+                  <span>关键词</span>
+                  <input id="categoryKeywordsInput" type="text" maxlength="60" placeholder="例如：猫粮,狗粮,宠物店" />
+                </label>
+                <button class="ghost-button" type="submit">添加分类</button>
+              </form>
+
+              <div class="manage-list" id="categoryList"></div>
             </div>
-          </div>
-          <input id="jsonFileInput" type="file" accept="application/json,.json" hidden />
-        </section>
+          </details>
 
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">Shortcuts</p>
-              <h2>给 iPhone 快捷指令用的链接</h2>
+          <details class="panel manage-section">
+            <summary class="manage-section-summary">
+              <div class="manage-section-copy">
+                <p class="eyebrow">Accounts</p>
+                <h2>银行卡 / 信用卡</h2>
+                <p class="muted">支持现金、钱包、储蓄卡、信用卡。</p>
+              </div>
+              <span class="manage-section-toggle">展开</span>
+            </summary>
+
+            <div class="manage-section-body">
+              <form id="accountForm" class="manage-form">
+                <label class="field">
+                  <span>卡片名</span>
+                  <input id="accountNameInput" type="text" maxlength="16" placeholder="例如：工资卡" required />
+                </label>
+                <label class="field">
+                  <span>银行 / 来源</span>
+                  <input id="accountBankInput" type="text" maxlength="16" placeholder="例如：招商银行" />
+                </label>
+                <label class="field small-field">
+                  <span>图标</span>
+                  <input id="accountIconInput" type="text" maxlength="2" placeholder="💳" />
+                </label>
+                <label class="field small-field">
+                  <span>类型</span>
+                  <select id="accountTypeInput">
+                    <option value="credit">信用卡</option>
+                    <option value="debit">储蓄卡</option>
+                    <option value="wallet">电子钱包</option>
+                    <option value="cash">现金</option>
+                    <option value="other">其他</option>
+                  </select>
+                </label>
+                <label class="field field--wide">
+                  <span>关键词</span>
+                  <input id="accountKeywordsInput" type="text" maxlength="60" placeholder="例如：招行,招商,掌上生活" />
+                </label>
+                <button class="ghost-button" type="submit">添加账户</button>
+              </form>
+
+              <div class="manage-list" id="accountList"></div>
             </div>
-            <p class="muted">适合主屏幕图标、Action Button 或 Siri 口令。</p>
-          </div>
+          </details>
 
-          <div class="shortcut-builder">
-            <label class="field">
-              <span>快捷金额</span>
-              <input id="shortcutAmount" type="number" step="0.01" min="0" value="18" inputmode="decimal" />
-            </label>
-            <label class="field">
-              <span>快捷分类</span>
-              <select id="shortcutCategory"></select>
-            </label>
-            <label class="field">
-              <span>快捷账户</span>
-              <select id="shortcutAccount"></select>
-            </label>
-            <label class="field">
-              <span>快捷备注</span>
-              <input id="shortcutNote" type="text" value="快捷记账" maxlength="24" />
-            </label>
-            <label class="field">
-              <span>快捷指令名</span>
-              <input id="shortcutName" type="text" value="Pocket Ledger 一句话记账" maxlength="32" />
-            </label>
-          </div>
+          <details class="panel manage-section">
+            <summary class="manage-section-summary">
+              <div class="manage-section-copy">
+                <p class="eyebrow">Shortcuts</p>
+                <h2>iPhone 快捷指令</h2>
+                <p class="muted">适合主屏幕图标、Action Button 或 Siri 口令。</p>
+              </div>
+              <span class="manage-section-toggle">展开</span>
+            </summary>
 
-          <div class="shortcut-actions">
-            <button class="ghost-button" id="copyShortcutLink" type="button">复制结构化自动落账链接</button>
-            <button class="ghost-button" id="copyVoiceTemplate" type="button">复制一句话快捷指令模板</button>
-            <button class="ghost-button" id="openShortcutCreate" type="button">打开快捷指令新建页</button>
-            <button class="ghost-button" id="copyRunShortcutUrl" type="button">复制运行这个快捷指令的 URL</button>
-            <button class="ghost-button" id="downloadShortcutGuide" type="button">下载创建模板</button>
-          </div>
+            <div class="manage-section-body">
+              <div class="shortcut-builder">
+                <label class="field">
+                  <span>快捷金额</span>
+                  <input id="shortcutAmount" type="number" step="0.01" min="0" value="18" inputmode="decimal" />
+                </label>
+                <label class="field">
+                  <span>快捷分类</span>
+                  <select id="shortcutCategory"></select>
+                </label>
+                <label class="field">
+                  <span>快捷账户</span>
+                  <select id="shortcutAccount"></select>
+                </label>
+                <label class="field">
+                  <span>快捷备注</span>
+                  <input id="shortcutNote" type="text" value="快捷记账" maxlength="24" />
+                </label>
+                <label class="field">
+                  <span>快捷指令名</span>
+                  <input id="shortcutName" type="text" value="Pocket Ledger 一句话记账" maxlength="32" />
+                </label>
+              </div>
 
-          <div class="mini-note" id="shortcutStatus">
-            快捷指令除了传金额和分类，也可以直接传 `text=瑞幸咖啡18 支付宝` 这类中文文本，让页面自动识别并入账。
-          </div>
+              <div class="shortcut-actions">
+                <button class="ghost-button" id="copyShortcutLink" type="button">复制结构化自动落账链接</button>
+                <button class="ghost-button" id="copyVoiceTemplate" type="button">复制一句话快捷指令模板</button>
+                <button class="ghost-button" id="openShortcutCreate" type="button">打开快捷指令新建页</button>
+                <button class="ghost-button" id="copyRunShortcutUrl" type="button">复制运行这个快捷指令的 URL</button>
+                <button class="ghost-button" id="downloadShortcutGuide" type="button">下载创建模板</button>
+              </div>
 
-          <div class="mini-note">
-            苹果官方支持 `shortcuts://create-shortcut` 跳到新建页，也支持 `shortcuts://run-shortcut?...` 运行已存在的快捷指令。
-            纯网页不能直接生成一个全新的 `.shortcut` 文件，所以这里给你的是最接近一键导入的官方路线。
-          </div>
+              <div class="mini-note" id="shortcutStatus">
+                快捷指令除了传金额和分类，也可以直接传 `text=瑞幸咖啡18 支付宝` 这类中文文本，让页面自动识别并入账。
+              </div>
+
+              <div class="mini-note">
+                苹果官方支持 `shortcuts://create-shortcut` 跳到新建页，也支持 `shortcuts://run-shortcut?...` 运行已存在的快捷指令。
+                纯网页不能直接生成一个全新的 `.shortcut` 文件，所以这里给你的是最接近一键导入的官方路线。
+              </div>
+            </div>
+          </details>
         </section>
       </section>
     </main>
