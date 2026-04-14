@@ -131,14 +131,14 @@ textarea {
   z-index: 20;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
+  gap: 2px;
   width: min(calc(100% - 20px), 560px);
-  padding: 6px;
-  border-radius: 18px;
-  border: 1px solid rgba(24, 27, 26, 0.08);
-  background: rgba(255, 255, 255, 0.92);
+  padding: 4px 6px;
+  border-radius: 16px;
+  border: 1px solid rgba(24, 27, 26, 0.06);
+  background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(18px);
-  box-shadow: 0 8px 24px rgba(18, 23, 20, 0.08);
+  box-shadow: 0 4px 16px rgba(18, 23, 20, 0.05);
   transform: translateX(-50%);
 }
 
@@ -149,7 +149,7 @@ textarea {
   min-height: 44px;
   padding: 8px 10px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 10px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -166,9 +166,9 @@ textarea {
 }
 
 .app-nav-button.is-active {
-  color: #f7f8f7;
-  background: var(--deep);
-  box-shadow: none;
+  color: var(--deep);
+  background: transparent;
+  box-shadow: inset 0 -2px 0 var(--deep);
 }
 
 @keyframes app-view-fade {
@@ -248,9 +248,9 @@ textarea {
 }
 
 .hero h1 {
-  max-width: 12ch;
-  font-size: clamp(1.7rem, 5vw, 2.5rem);
-  line-height: 1.05;
+  max-width: none;
+  font-size: clamp(1.55rem, 4.6vw, 2.2rem);
+  line-height: 1.02;
 }
 
 .hero-copy,
@@ -261,10 +261,10 @@ textarea {
 }
 
 .hero-copy {
-  max-width: 34rem;
+  max-width: 22rem;
   margin: 6px 0 0;
   line-height: 1.5;
-  font-size: 0.94rem;
+  font-size: 0.88rem;
 }
 
 .hero-badge {
@@ -1184,19 +1184,20 @@ button:disabled {
   }
 
   .app-nav {
-    gap: 5px;
-    padding: 5px;
+    gap: 1px;
+    padding: 3px 5px;
     width: min(calc(100% - 10px), 440px);
-    border-radius: 14px;
+    border-radius: 12px;
   }
 
   .app-nav-button {
-    min-height: 36px;
-    padding: 4px 6px;
+    min-height: 34px;
+    padding: 3px 4px 5px;
   }
 
   .app-nav-button strong {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
+    font-weight: 600;
   }
 
   .month-nav {
@@ -1223,15 +1224,15 @@ button:disabled {
   }
 
   .summary-card {
-    padding: 8px;
+    padding: 7px 8px;
   }
 
   .summary-card span {
-    font-size: 0.6rem;
+    font-size: 0.58rem;
   }
 
   .summary-card strong {
-    font-size: 0.76rem;
+    font-size: 0.74rem;
   }
 
   .year-chip {
@@ -1253,13 +1254,13 @@ button:disabled {
   }
 
   .panel {
-    padding: 10px;
+    padding: 9px;
   }
 
   .panel-head h2,
   .budget-head h3,
   .visual-card h3 {
-    font-size: 0.9rem;
+    font-size: 0.86rem;
   }
 
   .field input,
@@ -1271,12 +1272,14 @@ button:disabled {
   }
 
   .hero h1 {
-    font-size: 1.46rem;
+    font-size: 1.22rem;
     line-height: 1;
+    white-space: nowrap;
   }
 
   .hero-copy {
-    font-size: 0.86rem;
+    font-size: 0.74rem;
+    white-space: nowrap;
   }
 
   .manage-icon,
