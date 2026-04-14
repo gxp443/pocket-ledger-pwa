@@ -47,6 +47,29 @@ const presets = [
 ];
 
 const incomeKeywords = ["工资", "薪资", "收入", "转入", "入账", "收款", "报销", "奖金", "红包", "返现", "退款"];
+const breakfastFoodKeywords = ["早餐", "早饭", "豆浆", "油条", "包子", "馒头", "煎饼", "三明治"];
+const lunchCueKeywords = ["午饭", "午餐", "中饭", "中午", "工作餐"];
+const dinnerCueKeywords = ["晚饭", "晚餐", "晚上", "夜宵", "宵夜", "烧烤", "火锅", "聚餐", "烤肉"];
+const mealFoodKeywords = [
+  "牛肉面",
+  "拉面",
+  "面馆",
+  "面条",
+  "米线",
+  "盖饭",
+  "炒饭",
+  "米饭",
+  "黄焖鸡",
+  "麻辣烫",
+  "螺蛳粉",
+  "冒菜",
+  "汉堡",
+  "水饺",
+  "馄饨",
+  "盒饭",
+  "便当",
+  "快餐",
+];
 
 const accountTypeLabelMap = {
   cash: "现金",
@@ -112,7 +135,10 @@ const dom = {
   templateAccountInput: document.querySelector("#templateAccountInput"),
   templateTagsInput: document.querySelector("#templateTagsInput"),
   exportJsonButton: document.querySelector("#exportJsonButton"),
+  copyJsonBackupButton: document.querySelector("#copyJsonBackupButton"),
+  importClipboardButton: document.querySelector("#importClipboardButton"),
   importJsonButton: document.querySelector("#importJsonButton"),
+  shareJsonButton: document.querySelector("#shareJsonButton"),
   carryoverButton: document.querySelector("#carryoverButton"),
   backupStatus: document.querySelector("#backupStatus"),
   backupHealth: document.querySelector("#backupHealth"),
@@ -481,7 +507,10 @@ function bindEvents() {
   dom.templateTypeInput.addEventListener("change", renderTemplateOptions);
   dom.templateList.addEventListener("click", handleTemplateAction);
   dom.exportJsonButton.addEventListener("click", exportJsonBackup);
+  dom.copyJsonBackupButton.addEventListener("click", copyJsonBackup);
+  dom.importClipboardButton.addEventListener("click", importClipboardBackup);
   dom.importJsonButton.addEventListener("click", () => dom.jsonFileInput.click());
+  dom.shareJsonButton.addEventListener("click", shareJsonBackup);
   dom.jsonFileInput.addEventListener("change", importJsonBackup);
   dom.backupReminderSelect.addEventListener("change", handleBackupReminderChange);
   dom.carryoverButton.addEventListener("click", createMonthlyCarryover);
@@ -640,6 +669,7 @@ function getBackupInsight() {
   const hasEntries = state.entries.length > 0;
   const hasBaseline = Boolean(meta.baselineAt);
   const daysSinceBackup = hasBaseline ? getElapsedDays(meta.baselineAt) : null;
+  const standalone = isStandaloneMode();
   const overdueByAge = Boolean(reminderDays && hasBaseline && daysSinceBackup >= reminderDays);
   const severeAge = Boolean(reminderDays && hasBaseline && daysSinceBackup >= reminderDays * 2);
   const severeChanges = changeCount >= 12;
@@ -652,7 +682,9 @@ function getBackupInsight() {
   if (!hasEntries) {
     level = "idle";
     title = "还没有账本数据";
-    summary = "等你开始记账后，这里会提醒你导出一份 JSON 备份。";
+    summary = standalone
+      ? "主屏幕版现在还是一份空白本地账本。如果 Safari 里有旧数据，先用“复制备份”再来这里“剪贴板导入”。"
+      : "等你开始记账后，这里会提醒你导出一份 JSON 备份。";
   } else if (!hasBaseline) {
     level = "danger";
     title = "还没做过 JSON 备份";
@@ -674,10 +706,12 @@ function getBackupInsight() {
   }
 
   const details = [
+    `当前运行环境：${standalone ? "主屏幕 App" : "Safari / 浏览器"}`,
     hasBaseline ? `最近一份备份时间：${formatFullDate(meta.baselineAt)}（${formatElapsedDays(daysSinceBackup)}）` : "最近一份备份时间：还没有",
     hasBaseline ? `备份后新增 / 修改：${changeCount} 次` : `当前记录数：${state.entries.length} 笔`,
     meta.importedAt ? `最近一次导入：${formatFullDate(meta.importedAt)}` : "最近一次导入：还没有",
     reminderDays ? `提醒频率：每 ${reminderDays} 天检查一次` : "提醒频率：已关闭主动提醒",
+    "iPhone 上 Safari 和主屏幕版默认不共享这份本地数据；迁移时优先用“复制备份” -> “剪贴板导入”。",
     "点击“导出 JSON”后，请确认文件已经保存到 iCloud Drive 或“文件”App。",
   ];
 
@@ -1625,7 +1659,10 @@ function parseNaturalText(text) {
   const matchedCategory = matchCategoryAcrossAll(cleanText, normalizedText);
   const type = matchedCategory?.type || detectType(cleanText);
   const amount = extractAmount(cleanText);
-  const category = matchedCategory?.type === type ? matchedCategory : matchCategoryWithinType(cleanText, normalizedText, type);
+  const category =
+    matchedCategory?.type === type
+      ? matchedCategory
+      : matchCategoryWithinType(cleanText, normalizedText, type) || inferCategoryByMeaning(cleanText, normalizedText, type);
   const fallbackCategory = getCategories(type).find((item) => item.key === (type === "income" ? "other-income" : "other-expense"));
   const account = matchAccount(cleanText, normalizedText) || getAccountById(state.settings.activeAccountId) || getAccounts()[0];
 
@@ -1690,6 +1727,54 @@ function matchAccount(text, normalizedText) {
   return chooseBestMatch(getAccounts(), (account) => accountMatchScore(account, text, normalizedText));
 }
 
+function inferCategoryByMeaning(text, normalizedText, type) {
+  if (type !== "expense") {
+    return null;
+  }
+
+  return inferMealCategory(text, normalizedText);
+}
+
+function inferMealCategory(text, normalizedText) {
+  const breakfastScore = keywordMatchScore(breakfastFoodKeywords, text, normalizedText);
+  const lunchCueScore = keywordMatchScore(lunchCueKeywords, text, normalizedText);
+  const dinnerCueScore = keywordMatchScore(dinnerCueKeywords, text, normalizedText);
+  const mealScore = keywordMatchScore(mealFoodKeywords, text, normalizedText);
+
+  if (!breakfastScore && !lunchCueScore && !dinnerCueScore && !mealScore) {
+    return null;
+  }
+
+  if (breakfastScore > 0 && breakfastScore >= lunchCueScore && breakfastScore >= dinnerCueScore) {
+    return getCategoryByKey("breakfast");
+  }
+
+  if (lunchCueScore > dinnerCueScore) {
+    return getCategoryByKey("lunch");
+  }
+
+  if (dinnerCueScore > lunchCueScore) {
+    return getCategoryByKey("dinner");
+  }
+
+  if (mealScore > 0) {
+    return getCategoryByKey(inferMealCategoryKeyByClock());
+  }
+
+  return null;
+}
+
+function inferMealCategoryKeyByClock(date = new Date()) {
+  const hour = date.getHours();
+  if (hour >= 5 && hour < 10) {
+    return "breakfast";
+  }
+  if (hour >= 10 && hour < 16) {
+    return "lunch";
+  }
+  return "dinner";
+}
+
 function chooseBestMatch(items, scorer) {
   const scored = items
     .map((item) => ({ item, score: scorer(item) }))
@@ -1707,6 +1792,10 @@ function categoryMatchScore(category, text, normalizedText) {
 function accountMatchScore(account, text, normalizedText) {
   const tokens = [account.name, account.bank, ...(account.keywords || [])].filter(Boolean);
   return tokenScore(tokens, text, normalizedText);
+}
+
+function keywordMatchScore(keywords, text, normalizedText) {
+  return tokenScore(keywords, text, normalizedText);
 }
 
 function tokenScore(tokens, text, normalizedText) {
@@ -2075,25 +2164,71 @@ function exportCsv() {
   URL.revokeObjectURL(url);
 }
 
-function exportJsonBackup() {
-  const exportedAt = new Date().toISOString();
-  markBackupFresh(exportedAt);
-  const payload = {
+function createBackupPayload(exportedAt = new Date().toISOString()) {
+  return {
     exportedAt,
     version: 2,
     settings: state.settings,
     entries: state.entries,
   };
+}
 
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8;" });
+function getBackupFilename(exportedAt = new Date().toISOString()) {
+  return `pocket-ledger-backup-${exportedAt.slice(0, 10)}.json`;
+}
+
+function serializeBackupPayload(payload) {
+  return JSON.stringify(payload, null, 2);
+}
+
+function exportJsonBackup() {
+  const payload = createBackupPayload();
+  const backupText = serializeBackupPayload(payload);
+  markBackupFresh(payload.exportedAt);
+
+  const blob = new Blob([backupText], { type: "application/json;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = `pocket-ledger-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  anchor.download = getBackupFilename(payload.exportedAt);
   anchor.click();
   URL.revokeObjectURL(url);
   renderBackupPanel();
   showToast("JSON 备份已导出，请确认文件已保存到 iCloud Drive");
+}
+
+async function copyJsonBackup() {
+  const payload = createBackupPayload();
+  await copyText(serializeBackupPayload(payload), "备份 JSON 已复制，去主屏幕版直接粘贴导入", null);
+  markBackupFresh(payload.exportedAt);
+  renderBackupPanel();
+}
+
+async function shareJsonBackup() {
+  const payload = createBackupPayload();
+  const backupText = serializeBackupPayload(payload);
+  const filename = getBackupFilename(payload.exportedAt);
+
+  try {
+    if (navigator.share) {
+      const file = typeof File !== "undefined" ? new File([backupText], filename, { type: "application/json" }) : null;
+      if (file && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: "Pocket Ledger 备份" });
+      } else {
+        await navigator.share({ title: "Pocket Ledger 备份", text: backupText });
+      }
+      markBackupFresh(payload.exportedAt);
+      renderBackupPanel();
+      showToast("系统分享已打开");
+      return;
+    }
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      return;
+    }
+  }
+
+  exportJsonBackup();
 }
 
 function importJsonBackup(event) {
@@ -2104,41 +2239,66 @@ function importJsonBackup(event) {
 
   const reader = new FileReader();
   reader.onload = () => {
-    try {
-      const parsed = JSON.parse(String(reader.result || "{}"));
-      if (!Array.isArray(parsed.entries) || typeof parsed.settings !== "object" || !parsed.settings) {
-        throw new Error("invalid shape");
-      }
-
-      if (!window.confirm("导入 JSON 会整体替换当前本地数据，是否继续？")) {
-        dom.jsonFileInput.value = "";
-        return;
-      }
-
-      state.settings = normalizeSettings(parsed.settings);
-      state.entries = Array.isArray(parsed.entries)
-        ? parsed.entries.map((entry) => ({
-            ...entry,
-            id: entry.id || crypto.randomUUID(),
-            amount: Number(entry.amount) || 0,
-            tags: normalizeTags(entry.tags || []),
-            createdAt: entry.createdAt || new Date().toISOString(),
-          }))
-        : [];
-      state.editingEntryId = null;
-      state.editingTemplateId = null;
-      state.undoDeletion = null;
-      markBackupImported(new Date().toISOString(), parsed.exportedAt || new Date().toISOString());
-      persistEntries();
-      dom.jsonFileInput.value = "";
-      renderAll();
-      showToast("JSON 备份已导入");
-    } catch {
-      dom.jsonFileInput.value = "";
-      showToast("JSON 文件格式不对，导入失败");
-    }
+    importBackupText(String(reader.result || ""), "JSON 文件");
   };
   reader.readAsText(file, "utf-8");
+}
+
+async function importClipboardBackup() {
+  let text = "";
+
+  try {
+    if (navigator.clipboard?.readText) {
+      text = await navigator.clipboard.readText();
+    }
+  } catch {}
+
+  if (!text.trim()) {
+    text = window.prompt("把备份 JSON 粘贴到这里") || "";
+  }
+
+  if (!text.trim()) {
+    showToast("没有读到备份内容");
+    return;
+  }
+
+  importBackupText(text, "剪贴板备份");
+}
+
+function importBackupText(rawText, sourceLabel) {
+  try {
+    const parsed = JSON.parse(String(rawText || "{}"));
+    if (!Array.isArray(parsed.entries) || typeof parsed.settings !== "object" || !parsed.settings) {
+      throw new Error("invalid shape");
+    }
+
+    if (!window.confirm(`${sourceLabel}会整体替换当前本地数据，是否继续？`)) {
+      dom.jsonFileInput.value = "";
+      return;
+    }
+
+    state.settings = normalizeSettings(parsed.settings);
+    state.entries = Array.isArray(parsed.entries)
+      ? parsed.entries.map((entry) => ({
+          ...entry,
+          id: entry.id || crypto.randomUUID(),
+          amount: Number(entry.amount) || 0,
+          tags: normalizeTags(entry.tags || []),
+          createdAt: entry.createdAt || new Date().toISOString(),
+        }))
+      : [];
+    state.editingEntryId = null;
+    state.editingTemplateId = null;
+    state.undoDeletion = null;
+    markBackupImported(new Date().toISOString(), parsed.exportedAt || new Date().toISOString());
+    persistEntries();
+    dom.jsonFileInput.value = "";
+    renderAll();
+    showToast(`${sourceLabel}已导入`);
+  } catch {
+    dom.jsonFileInput.value = "";
+    showToast("备份内容格式不对，导入失败");
+  }
 }
 
 function createMonthlyCarryover() {
@@ -2327,14 +2487,16 @@ function downloadShortcutGuide() {
   showToast("快捷指令创建模板已下载");
 }
 
-async function copyText(text, successMessage) {
+async function copyText(text, successMessage, statusTarget = dom.shortcutStatus) {
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
     } else {
       window.prompt("复制下面的内容", text);
     }
-    dom.shortcutStatus.textContent = text;
+    if (statusTarget) {
+      statusTarget.textContent = text;
+    }
     showToast(successMessage);
   } catch {
     window.prompt("复制下面的内容", text);
@@ -2380,10 +2542,14 @@ function applyLaunchQuery() {
 }
 
 function updateInstallHint() {
-  const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+  const standalone = isStandaloneMode();
   dom.installHint.innerHTML = standalone
     ? "<span>主屏幕</span><strong>已安装</strong>"
     : "<span>Safari</span><strong>可添加</strong>";
+}
+
+function isStandaloneMode() {
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
 }
 
 function registerServiceWorker() {
