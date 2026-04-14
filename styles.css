@@ -28,12 +28,15 @@ html {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  overflow-x: hidden;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
   background: var(--bg);
+  overflow-x: hidden;
+  touch-action: manipulation;
 }
 
 button,
@@ -1178,8 +1181,9 @@ textarea {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(92px + env(safe-area-inset-bottom));
-  transform: translate(-50%, 24px);
+  top: calc(12px + env(safe-area-inset-top));
+  bottom: auto;
+  transform: translate(-50%, -24px);
   min-width: 240px;
   max-width: calc(100% - 32px);
   padding: 12px 14px;
@@ -1481,7 +1485,9 @@ button:disabled {
   }
 
   .toast {
-    bottom: calc(82px + env(safe-area-inset-bottom));
+    top: calc(10px + env(safe-area-inset-top));
+    bottom: auto;
     font-size: 0.8rem;
+    max-width: calc(100% - 20px);
   }
 }
