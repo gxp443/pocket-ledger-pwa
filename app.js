@@ -3,6 +3,7 @@ const SETTINGS_STORAGE_KEY = "pocket-ledger-settings-v2";
 const LEGACY_ENTRY_STORAGE_KEY = "pocket-ledger-entries-v1";
 const LEGACY_TYPE_KEY = "pocket-ledger-active-type";
 const LEGACY_CATEGORY_KEY = "pocket-ledger-active-category";
+const APP_VIEWS = ["home", "ledger", "insights", "manage"];
 const BACKUP_REMINDER_OPTIONS = [0, 3, 7, 14, 30];
 const BACKUP_REMINDER_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 
@@ -56,6 +57,9 @@ const accountTypeLabelMap = {
 };
 
 const dom = {
+  appViews: [...document.querySelectorAll("[data-app-view]")],
+  appViewButtons: [...document.querySelectorAll("[data-app-view-target]")],
+  appNavButtons: [...document.querySelectorAll(".app-nav-button")],
   installHint: document.querySelector("#installHint"),
   monthExpense: document.querySelector("#monthExpense"),
   monthIncome: document.querySelector("#monthIncome"),
@@ -143,6 +147,7 @@ const dom = {
   clearFiltersButton: document.querySelector("#clearFiltersButton"),
   tagFilterStrip: document.querySelector("#tagFilterStrip"),
   filterSummary: document.querySelector("#filterSummary"),
+  insightsSummary: document.querySelector("#insightsSummary"),
   entries: document.querySelector("#entries"),
   pager: document.querySelector("#pager"),
   prevPageButton: document.querySelector("#prevPageButton"),
@@ -203,6 +208,7 @@ function boot() {
 
 function createDefaultSettings() {
   return {
+    activeView: "home",
     monthlyBudget: 0,
     backupReminderDays: 7,
     backupMeta: createDefaultBackupMeta(),
@@ -233,6 +239,7 @@ function loadSettings() {
 
 function normalizeSettings(settings) {
   return {
+    activeView: APP_VIEWS.includes(settings.activeView) ? settings.activeView : "home",
     monthlyBudget: Number(settings.monthlyBudget) || 0,
     backupReminderDays: BACKUP_REMINDER_OPTIONS.includes(Number(settings.backupReminderDays)) ? Number(settings.backupReminderDays) : 7,
     backupMeta: normalizeBackupMeta(settings.backupMeta),
@@ -325,6 +332,10 @@ function getAccountById(id) {
 }
 
 function ensureSelectionIntegrity() {
+  if (!APP_VIEWS.includes(state.settings.activeView)) {
+    state.settings.activeView = "home";
+  }
+
   if (!["expense", "income"].includes(state.settings.activeType)) {
     state.settings.activeType = "expense";
   }
@@ -342,6 +353,12 @@ function ensureSelectionIntegrity() {
 }
 
 function bindEvents() {
+  dom.appViewButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      setActiveView(button.dataset.appViewTarget);
+    });
+  });
+
   dom.smartTextInput.addEventListener("input", renderParserPreview);
   dom.smartCommitButton.addEventListener("click", handleSmartCommit);
   dom.smartClearButton.addEventListener("click", () => {
@@ -521,6 +538,7 @@ function renderStaticCollections() {
 
 function renderAll() {
   ensureSelectionIntegrity();
+  renderAppViews();
   renderSummary();
   renderBudget();
   renderBackupPanel();
@@ -536,6 +554,31 @@ function renderAll() {
   renderEntries();
   renderPager();
   renderParserPreview();
+}
+
+function renderAppViews() {
+  dom.appViews.forEach((view) => {
+    view.classList.toggle("is-active", view.dataset.appView === state.settings.activeView);
+  });
+
+  dom.appNavButtons.forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.appViewTarget === state.settings.activeView);
+  });
+}
+
+function setActiveView(view, options = {}) {
+  if (!APP_VIEWS.includes(view)) {
+    return;
+  }
+
+  const { scroll = true } = options;
+  state.settings.activeView = view;
+  persistSettings();
+  renderAppViews();
+
+  if (scroll) {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 }
 
 function renderSummary() {
@@ -967,7 +1010,9 @@ function renderFilterSummary() {
     parts.push(`金额合计 ${currency.format(total)}`);
   }
 
-  dom.filterSummary.textContent = parts.join(" · ");
+  const summaryText = parts.join(" · ");
+  dom.filterSummary.textContent = summaryText;
+  dom.insightsSummary.textContent = `当前分析基于：${summaryText}`;
 }
 
 function renderVisualBoards() {
@@ -1123,6 +1168,7 @@ function startEditingEntry(entryId) {
     return;
   }
 
+  setActiveView("ledger", { scroll: false });
   state.editingEntryId = entryId;
   state.settings.activeType = entry.type;
   state.settings.activeCategoryKey = entry.categoryKey;
