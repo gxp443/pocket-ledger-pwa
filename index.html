@@ -28,38 +28,33 @@
             </div>
           </div>
           <p class="hero-copy">一句话输入，直接落账。</p>
-        </section>
-
-        <section class="summary-grid summary-grid--focus" aria-label="本月总览">
-          <article class="summary-card summary-card--expense">
-            <span>支出</span>
-            <strong id="monthExpense">¥0.00</strong>
-          </article>
-          <article class="summary-card summary-card--income">
-            <span>收入</span>
-            <strong id="monthIncome">¥0.00</strong>
-          </article>
-          <article class="summary-card summary-card--budget">
-            <span>剩余</span>
-            <strong id="monthBudgetLeft">¥0.00</strong>
-          </article>
+          <section class="summary-grid summary-grid--focus" aria-label="本月总览">
+            <article class="summary-card summary-card--expense">
+              <span>支出</span>
+              <strong id="monthExpense">¥0.00</strong>
+            </article>
+            <article class="summary-card summary-card--income">
+              <span>收入</span>
+              <strong id="monthIncome">¥0.00</strong>
+            </article>
+            <article class="summary-card summary-card--budget">
+              <span>剩余</span>
+              <strong id="monthBudgetLeft">¥0.00</strong>
+            </article>
+          </section>
         </section>
 
         <section class="panel panel--composer">
-          <div class="panel-head panel-head--plain">
-            <p class="muted">例如：瑞幸咖啡18 支付宝 / 打车26 招行信用卡 / 工资8500 工资卡。</p>
-          </div>
-
           <div class="smart-grid">
             <div class="smart-stack">
               <label class="field field--textarea">
-                <span>中文消费文本</span>
-                <textarea id="smartTextInput" rows="3" placeholder="直接输入一句话，我来识别金额、分类、账户和收支类型"></textarea>
+                <span>一句话输入</span>
+                <textarea id="smartTextInput" rows="3" placeholder="瑞幸咖啡18 支付宝 / 午饭28 微信 / 工资8500 工资卡"></textarea>
               </label>
 
               <div class="smart-actions">
-                <button class="primary-button" id="smartCommitButton" type="button">解析并记账</button>
-                <button class="ghost-button" id="smartClearButton" type="button">清空文本</button>
+                <button class="primary-button" id="smartCommitButton" type="button">记账</button>
+                <button class="ghost-button" id="smartClearButton" type="button">清空</button>
               </div>
 
               <div class="example-strip" id="smartExamples"></div>
