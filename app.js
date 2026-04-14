@@ -2382,8 +2382,8 @@ function applyLaunchQuery() {
 function updateInstallHint() {
   const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
   dom.installHint.innerHTML = standalone
-    ? "<span>主屏幕模式</span><strong>现在就是 app 视图</strong>"
-    : "<span>安装提示</span><strong>Safari 里点共享 -> 添加到主屏幕</strong>";
+    ? "<span>主屏幕</span><strong>已安装</strong>"
+    : "<span>Safari</span><strong>可添加</strong>";
 }
 
 function registerServiceWorker() {

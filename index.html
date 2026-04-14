@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#17312c" />
+    <meta name="theme-color" content="#efefe9" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Pocket Ledger" />
@@ -17,72 +17,40 @@
     <div class="grain"></div>
     <main class="app-shell">
       <section class="app-view is-active" data-app-view="home">
-        <section class="hero hero--compact">
-          <div class="hero-main">
-            <p class="eyebrow">Pocket Ledger</p>
-            <h1>记一笔就走</h1>
-            <p class="hero-copy">
-              一句话输入，直接落账。
-            </p>
-          </div>
-          <div class="hero-side">
-            <div class="hero-badge" id="installHint">
-              <span>主屏幕模式</span>
-              <strong>适合自己长期用</strong>
+        <section class="hero hero--minimal">
+          <div class="hero-topline">
+            <div class="hero-title-block">
+              <p class="eyebrow">Pocket Ledger</p>
+              <h1>记一笔就走</h1>
             </div>
-
-            <section class="year-strip" aria-label="年度汇总">
-              <article class="year-chip">
-                <span>年支出</span>
-                <strong id="yearExpense">¥0.00</strong>
-              </article>
-              <article class="year-chip">
-                <span>年收入</span>
-                <strong id="yearIncome">¥0.00</strong>
-              </article>
-              <article class="year-chip">
-                <span>年结余</span>
-                <strong id="yearNet">¥0.00</strong>
-              </article>
-            </section>
+            <div class="hero-badge hero-badge--inline" id="installHint">
+              <span>主屏幕</span>
+              <strong>离线可用</strong>
+            </div>
           </div>
+          <p class="hero-copy">一句话输入，直接落账。</p>
         </section>
 
-        <section class="summary-grid summary-grid--focus" aria-label="总览">
+        <section class="summary-grid summary-grid--focus" aria-label="本月总览">
           <article class="summary-card summary-card--expense">
-            <span>本月支出</span>
+            <span>支出</span>
             <strong id="monthExpense">¥0.00</strong>
           </article>
           <article class="summary-card summary-card--income">
-            <span>本月收入</span>
+            <span>收入</span>
             <strong id="monthIncome">¥0.00</strong>
           </article>
           <article class="summary-card summary-card--budget">
-            <span>预算剩余</span>
+            <span>剩余</span>
             <strong id="monthBudgetLeft">¥0.00</strong>
           </article>
         </section>
 
-        <section class="app-jump-strip app-jump-strip--compact" aria-label="快捷跳转">
-          <button class="app-jump-button" type="button" data-app-view-target="ledger">
-            <span>账本</span>
-            <strong>账本</strong>
-          </button>
-          <button class="app-jump-button" type="button" data-app-view-target="insights">
-            <span>分析</span>
-            <strong>分析</strong>
-          </button>
-          <button class="app-jump-button" type="button" data-app-view-target="manage">
-            <span>管理</span>
-            <strong>管理</strong>
-          </button>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
+        <section class="panel panel--composer">
+          <div class="panel-head panel-head--tight">
             <div>
               <p class="eyebrow">Smart Capture</p>
-              <h2>一句话快记</h2>
+              <h2>一句话记账</h2>
             </div>
             <p class="muted">例如：瑞幸咖啡18 支付宝 / 打车26 招行信用卡 / 工资8500 工资卡。</p>
           </div>
@@ -112,7 +80,7 @@
               <div class="budget-head">
                 <div>
                   <p class="eyebrow">Budget</p>
-                  <h3>每月消费限制</h3>
+                  <h3>月预算</h3>
                 </div>
                 <button class="ghost-button" id="saveBudgetButton" type="button">保存</button>
               </div>
@@ -282,15 +250,30 @@
         </section>
 
         <section class="panel insights">
-          <div class="panel-head">
+          <div class="panel-head panel-head--tight">
             <div>
               <p class="eyebrow">Visuals</p>
               <h2>分类与账户</h2>
             </div>
-            <button class="ghost-button" type="button" data-app-view-target="ledger">去账本调整筛选</button>
+            <button class="ghost-button" type="button" data-app-view-target="ledger">去账本筛选</button>
           </div>
 
           <div class="mini-note" id="insightsSummary">分析结果会跟随账本页当前筛选条件。</div>
+
+          <section class="summary-grid summary-grid--year" aria-label="年度汇总">
+            <article class="summary-card">
+              <span>支出</span>
+              <strong id="yearExpense">¥0.00</strong>
+            </article>
+            <article class="summary-card">
+              <span>收入</span>
+              <strong id="yearIncome">¥0.00</strong>
+            </article>
+            <article class="summary-card">
+              <span>结余</span>
+              <strong id="yearNet">¥0.00</strong>
+            </article>
+          </section>
 
           <div class="visual-grid">
             <section class="visual-card">
@@ -316,7 +299,7 @@
       <section class="app-view" data-app-view="manage">
         <section class="view-headline">
           <p class="eyebrow">Manage</p>
-          <h2>管理</h2>
+          <h2>设置</h2>
           <p class="muted">平时你只管记账，不常动的内容按组折叠，避免这一页变成长后台。</p>
         </section>
 
@@ -538,8 +521,8 @@
 
     <nav class="app-nav" aria-label="主导航">
       <button class="app-nav-button is-active" type="button" data-app-view-target="home">
-        <span>主页</span>
-        <strong>主页</strong>
+        <span>快记</span>
+        <strong>快记</strong>
       </button>
       <button class="app-nav-button" type="button" data-app-view-target="ledger">
         <span>账本</span>
@@ -550,8 +533,8 @@
         <strong>分析</strong>
       </button>
       <button class="app-nav-button" type="button" data-app-view-target="manage">
-        <span>管理</span>
-        <strong>管理</strong>
+        <span>设置</span>
+        <strong>设置</strong>
       </button>
     </nav>
 
