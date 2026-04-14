@@ -6,6 +6,7 @@ const LEGACY_CATEGORY_KEY = "pocket-ledger-active-category";
 const APP_VIEWS = ["home", "ledger", "insights", "manage"];
 const BACKUP_REMINDER_OPTIONS = [0, 3, 7, 14, 30];
 const BACKUP_REMINDER_COOLDOWN_MS = 12 * 60 * 60 * 1000;
+const CLIPBOARD_BACKUP_SOFT_LIMIT = 180 * 1024;
 
 const builtInCategories = [
   { key: "breakfast", label: "早餐", icon: "🥐", type: "expense", keywords: ["早餐", "早饭", "豆浆", "包子", "油条", "煎饼"], builtIn: true },
@@ -679,6 +680,7 @@ function getBackupInsight() {
   const hasBaseline = Boolean(meta.baselineAt);
   const daysSinceBackup = hasBaseline ? getElapsedDays(meta.baselineAt) : null;
   const standalone = isStandaloneMode();
+  const backupSizeBytes = hasEntries ? getTextByteLength(serializeBackupPayload(createBackupPayload(meta.baselineAt || new Date().toISOString()), false)) : 0;
   const overdueByAge = Boolean(reminderDays && hasBaseline && daysSinceBackup >= reminderDays);
   const severeAge = Boolean(reminderDays && hasBaseline && daysSinceBackup >= reminderDays * 2);
   const severeChanges = changeCount >= 12;
@@ -718,10 +720,11 @@ function getBackupInsight() {
     `当前运行环境：${standalone ? "主屏幕 App" : "Safari / 浏览器"}`,
     hasBaseline ? `最近一份备份时间：${formatFullDate(meta.baselineAt)}（${formatElapsedDays(daysSinceBackup)}）` : "最近一份备份时间：还没有",
     hasBaseline ? `备份后新增 / 修改：${changeCount} 次` : `当前记录数：${state.entries.length} 笔`,
+    hasEntries ? `当前账本体积：约 ${formatByteSize(backupSizeBytes)}` : "当前账本体积：还没有账本数据",
     meta.importedAt ? `最近一次导入：${formatFullDate(meta.importedAt)}` : "最近一次导入：还没有",
     reminderDays ? `提醒频率：每 ${reminderDays} 天检查一次` : "提醒频率：已关闭主动提醒",
-    "iPhone 上 Safari 和主屏幕版默认不共享这份本地数据；迁移时优先用“复制备份” -> “剪贴板导入”。",
-    "点击“导出 JSON”后，请确认文件已经保存到 iCloud Drive 或“文件”App。",
+    "iPhone 上 Safari 和主屏幕版默认不共享这份本地数据；少量数据可用“复制备份” -> “剪贴板导入”。",
+    "数据一多时，优先用“系统分享”或“导出 JSON”；文件导入同时支持 JSON 和压缩备份文本。",
   ];
 
   return { level, title, summary, details };
@@ -2198,8 +2201,26 @@ function getBackupFilename(exportedAt = new Date().toISOString()) {
   return `pocket-ledger-backup-${exportedAt.slice(0, 10)}.json`;
 }
 
-function serializeBackupPayload(payload) {
-  return JSON.stringify(payload, null, 2);
+function getTransferFilename(exportedAt = new Date().toISOString()) {
+  return `pocket-ledger-transfer-${exportedAt.slice(0, 10)}.txt`;
+}
+
+function serializeBackupPayload(payload, pretty = true) {
+  return JSON.stringify(payload, null, pretty ? 2 : 0);
+}
+
+async function buildBackupTransferBundle() {
+  const payload = createBackupPayload();
+  const rawText = serializeBackupPayload(payload, false);
+  const transferText = await encodeBackupTransfer(rawText);
+  return {
+    payload,
+    rawText,
+    transferText,
+    rawBytes: getTextByteLength(rawText),
+    transferBytes: getTextByteLength(transferText),
+    compressed: transferText.startsWith("PLZ1:"),
+  };
 }
 
 function exportJsonBackup() {
@@ -2219,28 +2240,36 @@ function exportJsonBackup() {
 }
 
 async function copyJsonBackup() {
-  const payload = createBackupPayload();
-  await copyText(serializeBackupPayload(payload), "备份 JSON 已复制，去主屏幕版直接粘贴导入", null);
-  markBackupFresh(payload.exportedAt);
+  const bundle = await buildBackupTransferBundle();
+  const successMessage =
+    bundle.transferBytes > CLIPBOARD_BACKUP_SOFT_LIMIT
+      ? `压缩备份已复制，约 ${formatByteSize(bundle.transferBytes)}，如果导入不稳请改用系统分享`
+      : "压缩备份已复制，去主屏幕版直接粘贴导入";
+  const copied = await copyText(bundle.transferText, successMessage, null);
+  if (!copied) {
+    return;
+  }
+  markBackupFresh(bundle.payload.exportedAt);
   renderBackupPanel();
 }
 
 async function shareJsonBackup() {
-  const payload = createBackupPayload();
-  const backupText = serializeBackupPayload(payload);
-  const filename = getBackupFilename(payload.exportedAt);
+  const bundle = await buildBackupTransferBundle();
+  const filename = bundle.compressed ? getTransferFilename(bundle.payload.exportedAt) : getBackupFilename(bundle.payload.exportedAt);
+  const shareText = bundle.compressed ? bundle.transferText : bundle.rawText;
+  const fileType = bundle.compressed ? "text/plain" : "application/json";
 
   try {
     if (navigator.share) {
-      const file = typeof File !== "undefined" ? new File([backupText], filename, { type: "application/json" }) : null;
+      const file = typeof File !== "undefined" ? new File([shareText], filename, { type: fileType }) : null;
       if (file && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: "Pocket Ledger 备份" });
       } else {
-        await navigator.share({ title: "Pocket Ledger 备份", text: backupText });
+        await navigator.share({ title: "Pocket Ledger 备份", text: shareText });
       }
-      markBackupFresh(payload.exportedAt);
+      markBackupFresh(bundle.payload.exportedAt);
       renderBackupPanel();
-      showToast("系统分享已打开");
+      showToast(bundle.compressed ? "系统分享已打开，建议直接保存这个压缩备份文件" : "系统分享已打开");
       return;
     }
   } catch (error) {
@@ -2259,8 +2288,8 @@ function importJsonBackup(event) {
   }
 
   const reader = new FileReader();
-  reader.onload = () => {
-    importBackupText(String(reader.result || ""), "JSON 文件");
+  reader.onload = async () => {
+    await importBackupText(String(reader.result || ""), "备份文件");
   };
   reader.readAsText(file, "utf-8");
 }
@@ -2283,12 +2312,13 @@ async function importClipboardBackup() {
     return;
   }
 
-  importBackupText(text, "剪贴板备份");
+  await importBackupText(text, "剪贴板备份");
 }
 
-function importBackupText(rawText, sourceLabel) {
+async function importBackupText(rawText, sourceLabel) {
   try {
-    const parsed = JSON.parse(String(rawText || "{}"));
+    const decodedText = await decodeBackupTransfer(String(rawText || ""));
+    const parsed = JSON.parse(decodedText);
     if (!Array.isArray(parsed.entries) || typeof parsed.settings !== "object" || !parsed.settings) {
       throw new Error("invalid shape");
     }
@@ -2318,8 +2348,72 @@ function importBackupText(rawText, sourceLabel) {
     showToast(`${sourceLabel}已导入`);
   } catch {
     dom.jsonFileInput.value = "";
-    showToast("备份内容格式不对，导入失败");
+    showToast("备份内容格式不对，导入失败。支持 JSON 和压缩备份文本");
   }
+}
+
+async function encodeBackupTransfer(text) {
+  if (typeof CompressionStream !== "function") {
+    return text;
+  }
+
+  try {
+    const compressedStream = new Blob([text]).stream().pipeThrough(new CompressionStream("gzip"));
+    const buffer = await new Response(compressedStream).arrayBuffer();
+    return `PLZ1:${arrayBufferToBase64(buffer)}`;
+  } catch {
+    return text;
+  }
+}
+
+async function decodeBackupTransfer(text) {
+  const value = String(text || "").trim();
+  if (!value.startsWith("PLZ1:")) {
+    return value;
+  }
+
+  if (typeof DecompressionStream !== "function") {
+    throw new Error("decompression unsupported");
+  }
+
+  const base64 = value.slice(5);
+  const compressedBytes = base64ToUint8Array(base64);
+  const decompressedStream = new Blob([compressedBytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return await new Response(decompressedStream).text();
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    const chunk = bytes.subarray(i, i + 0x8000);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
+function base64ToUint8Array(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function getTextByteLength(text) {
+  return new TextEncoder().encode(String(text || "")).length;
+}
+
+function formatByteSize(bytes) {
+  const value = Math.max(0, Number(bytes) || 0);
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(value >= 10 * 1024 ? 0 : 1)} KB`;
+  }
+  return `${(value / (1024 * 1024)).toFixed(value >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
 }
 
 function createMonthlyCarryover() {
@@ -2509,18 +2603,28 @@ function downloadShortcutGuide() {
 }
 
 async function copyText(text, successMessage, statusTarget = dom.shortcutStatus) {
+  const textBytes = getTextByteLength(text);
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
-    } else {
+    } else if (textBytes <= CLIPBOARD_BACKUP_SOFT_LIMIT) {
       window.prompt("复制下面的内容", text);
+    } else {
+      showToast("当前环境不适合复制大备份，请改用系统分享或导出 JSON");
+      return false;
     }
     if (statusTarget) {
       statusTarget.textContent = text;
     }
     showToast(successMessage);
+    return true;
   } catch {
+    if (textBytes > CLIPBOARD_BACKUP_SOFT_LIMIT) {
+      showToast("复制失败，数据偏大，请改用系统分享或导出 JSON");
+      return false;
+    }
     window.prompt("复制下面的内容", text);
+    return true;
   }
 }
 
