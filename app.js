@@ -8,14 +8,15 @@ const BACKUP_REMINDER_OPTIONS = [0, 3, 7, 14, 30];
 const BACKUP_REMINDER_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 
 const builtInCategories = [
-  { key: "breakfast", label: "早餐", icon: "🥐", type: "expense", keywords: ["早餐", "早饭", "豆浆", "包子"], builtIn: true },
-  { key: "lunch", label: "午饭", icon: "🍱", type: "expense", keywords: ["午饭", "午餐", "便当", "食堂"], builtIn: true },
-  { key: "dinner", label: "晚饭", icon: "🍜", type: "expense", keywords: ["晚饭", "晚餐", "夜宵", "宵夜"], builtIn: true },
-  { key: "coffee", label: "咖啡", icon: "☕", type: "expense", keywords: ["咖啡", "瑞幸", "星巴克", "拿铁", "美式"], builtIn: true },
-  { key: "transport", label: "通勤", icon: "🚇", type: "expense", keywords: ["地铁", "公交", "通勤"], builtIn: true },
-  { key: "taxi", label: "打车", icon: "🚕", type: "expense", keywords: ["打车", "滴滴", "出租"], builtIn: true },
-  { key: "grocery", label: "买菜", icon: "🛒", type: "expense", keywords: ["买菜", "超市", "生鲜", "菜场"], builtIn: true },
-  { key: "snack", label: "零食", icon: "🍪", type: "expense", keywords: ["零食", "水果", "奶茶", "饮料"], builtIn: true },
+  { key: "breakfast", label: "早餐", icon: "🥐", type: "expense", keywords: ["早餐", "早饭", "豆浆", "包子", "油条", "煎饼"], builtIn: true },
+  { key: "lunch", label: "午饭", icon: "🍱", type: "expense", keywords: ["午饭", "午餐", "便当", "食堂", "工作餐"], builtIn: true },
+  { key: "dinner", label: "晚饭", icon: "🍜", type: "expense", keywords: ["晚饭", "晚餐", "夜宵", "宵夜", "烧烤", "火锅"], builtIn: true },
+  { key: "coffee", label: "咖啡", icon: "☕", type: "expense", keywords: ["咖啡", "瑞幸", "星巴克", "库迪", "拿铁", "美式", "馥芮白"], builtIn: true },
+  { key: "transport", label: "通勤", icon: "🚇", type: "expense", keywords: ["地铁", "公交", "通勤", "高铁", "火车", "巴士"], builtIn: true },
+  { key: "taxi", label: "打车", icon: "🚕", type: "expense", keywords: ["打车", "滴滴", "出租", "专车", "网约车"], builtIn: true },
+  { key: "grocery", label: "买菜", icon: "🛒", type: "expense", keywords: ["买菜", "超市", "生鲜", "菜场", "菜市场", "便利店"], builtIn: true },
+  { key: "snack", label: "零食", icon: "🍪", type: "expense", keywords: ["零食", "水果", "奶茶", "饮料", "面包", "饼干", "薯片", "坚果", "酸奶"], builtIn: true },
+  { key: "smoke", label: "烟酒", icon: "🚬", type: "expense", keywords: ["烟", "买烟", "香烟", "卷烟", "电子烟", "酒", "啤酒", "白酒", "红酒", "槟榔"], builtIn: true },
   { key: "rent", label: "房租", icon: "🏠", type: "expense", keywords: ["房租", "租金"], builtIn: true },
   { key: "other-expense", label: "其他支出", icon: "🧾", type: "expense", keywords: ["消费", "支出", "付款"], builtIn: true },
   { key: "salary", label: "工资", icon: "💼", type: "income", keywords: ["工资", "薪资", "发薪"], builtIn: true },
@@ -69,6 +70,14 @@ const mealFoodKeywords = [
   "盒饭",
   "便当",
   "快餐",
+];
+const semanticCategoryRules = [
+  { categoryKey: "smoke", keywords: ["买烟", "香烟", "卷烟", "电子烟", "烟弹", "酒", "啤酒", "白酒", "红酒", "槟榔"] },
+  { categoryKey: "snack", keywords: ["零食", "薯片", "辣条", "饼干", "水果", "奶茶", "饮料", "可乐", "雪碧", "酸奶", "面包", "矿泉水"] },
+  { categoryKey: "coffee", keywords: ["咖啡", "瑞幸", "星巴克", "库迪", "拿铁", "美式", "馥芮白"] },
+  { categoryKey: "grocery", keywords: ["超市", "便利店", "生鲜", "买菜", "菜市场", "日用品", "纸巾", "牙膏", "洗发水"] },
+  { categoryKey: "taxi", keywords: ["打车", "滴滴", "专车", "网约车", "出租车"] },
+  { categoryKey: "transport", keywords: ["地铁", "公交", "高铁", "火车", "巴士", "车票"] },
 ];
 
 const accountTypeLabelMap = {
@@ -1732,7 +1741,7 @@ function inferCategoryByMeaning(text, normalizedText, type) {
     return null;
   }
 
-  return inferMealCategory(text, normalizedText);
+  return inferMealCategory(text, normalizedText) || inferSemanticCategory(text, normalizedText);
 }
 
 function inferMealCategory(text, normalizedText) {
@@ -1773,6 +1782,18 @@ function inferMealCategoryKeyByClock(date = new Date()) {
     return "lunch";
   }
   return "dinner";
+}
+
+function inferSemanticCategory(text, normalizedText) {
+  const matchedRule = chooseBestMatch(
+    semanticCategoryRules.map((rule) => ({
+      ...rule,
+      category: getCategoryByKey(rule.categoryKey),
+    })),
+    (rule) => (rule.category ? keywordMatchScore(rule.keywords, text, normalizedText) : 0)
+  );
+
+  return matchedRule?.category || null;
 }
 
 function chooseBestMatch(items, scorer) {
