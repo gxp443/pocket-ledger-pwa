@@ -1165,7 +1165,7 @@ textarea {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(24px + env(safe-area-inset-bottom));
+  bottom: calc(92px + env(safe-area-inset-bottom));
   transform: translate(-50%, 24px);
   min-width: 240px;
   max-width: calc(100% - 32px);
@@ -1178,6 +1178,7 @@ textarea {
   pointer-events: none;
   transition: transform 220ms ease, opacity 220ms ease;
   font-size: 0.78rem;
+  z-index: 30;
 }
 
 .toast.is-visible {
@@ -1277,7 +1278,7 @@ button:disabled {
   }
 
   .app-nav-button strong {
-    font-size: 0.69rem;
+    font-size: 0.72rem;
   }
 
   .app-nav-button.is-active::after {
@@ -1298,14 +1299,10 @@ button:disabled {
     align-items: stretch;
   }
 
-  .view-headline .muted,
+  .view-headline,
   .panel-head:not(.panel-head--plain) > .muted,
   .manage-section-copy .muted {
     display: none;
-  }
-
-  .view-headline h2 {
-    font-size: 1.08rem;
   }
 
   .summary-grid {
@@ -1333,7 +1330,7 @@ button:disabled {
   }
 
   .summary-card strong {
-    font-size: 0.82rem;
+    font-size: 0.86rem;
   }
 
   .panel,
@@ -1353,7 +1350,7 @@ button:disabled {
   .panel-head h2,
   .budget-head h3,
   .visual-card h3 {
-    font-size: 0.86rem;
+    font-size: 0.9rem;
   }
 
   .field input,
@@ -1361,7 +1358,7 @@ button:disabled {
   .field textarea {
     min-height: 38px;
     padding: 8px 9px;
-    font-size: 0.82rem;
+    font-size: 0.86rem;
   }
 
   .field textarea {
@@ -1374,7 +1371,7 @@ button:disabled {
   }
 
   .hero-copy {
-    font-size: 0.75rem;
+    font-size: 0.78rem;
     max-width: none;
   }
 
@@ -1422,7 +1419,7 @@ button:disabled {
   .account-main strong,
   .entry-amount strong,
   .account-side strong {
-    font-size: 0.82rem;
+    font-size: 0.86rem;
   }
 
   .manage-copy span,
@@ -1433,7 +1430,7 @@ button:disabled {
   .account-side span,
   .mini-note,
   .empty-state {
-    font-size: 0.72rem;
+    font-size: 0.76rem;
   }
 
   .manage-section-summary {
@@ -1447,5 +1444,10 @@ button:disabled {
   .summary-grid--year .summary-card {
     min-width: 94px;
     min-height: 60px;
+  }
+
+  .toast {
+    bottom: calc(78px + env(safe-area-inset-bottom));
+    font-size: 0.8rem;
   }
 }
