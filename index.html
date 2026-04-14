@@ -20,7 +20,6 @@
         <section class="hero hero--minimal">
           <div class="hero-topline">
             <div class="hero-title-block">
-              <p class="eyebrow">Pocket Ledger</p>
               <h1>记一笔就走</h1>
             </div>
             <div class="hero-badge hero-badge--inline" id="installHint">
@@ -47,11 +46,7 @@
         </section>
 
         <section class="panel panel--composer">
-          <div class="panel-head panel-head--tight">
-            <div>
-              <p class="eyebrow">Smart Capture</p>
-              <h2>一句话记账</h2>
-            </div>
+          <div class="panel-head panel-head--plain">
             <p class="muted">例如：瑞幸咖啡18 支付宝 / 打车26 招行信用卡 / 工资8500 工资卡。</p>
           </div>
 
@@ -78,10 +73,7 @@
 
             <aside class="budget-card">
               <div class="budget-head">
-                <div>
-                  <p class="eyebrow">Budget</p>
-                  <h3>月预算</h3>
-                </div>
+                <h3>预算</h3>
                 <button class="ghost-button" id="saveBudgetButton" type="button">保存</button>
               </div>
 
@@ -105,7 +97,6 @@
 
       <section class="app-view" data-app-view="ledger">
         <section class="view-headline">
-          <p class="eyebrow">Ledger</p>
           <h2>账本</h2>
           <p class="muted">把编辑、筛选、搜索和分页收在同一页，日常记账就停留在这里。</p>
         </section>
@@ -113,7 +104,6 @@
         <section class="panel">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Manual Entry</p>
               <h2>手动记录</h2>
             </div>
             <button class="ghost-button" id="resetForm" type="button">重置</button>
@@ -169,7 +159,6 @@
         <section class="panel ledger-records">
           <div class="panel-head">
             <div>
-              <p class="eyebrow">Records</p>
               <h2>记录</h2>
             </div>
             <div class="panel-tools">
@@ -244,17 +233,12 @@
 
       <section class="app-view" data-app-view="insights">
         <section class="view-headline">
-          <p class="eyebrow">Insights</p>
           <h2>分析</h2>
           <p class="muted">这里不做复杂图表，只保留你真的会看的分类和账户分布。</p>
         </section>
 
         <section class="panel insights">
-          <div class="panel-head panel-head--tight">
-            <div>
-              <p class="eyebrow">Visuals</p>
-              <h2>分类与账户</h2>
-            </div>
+          <div class="panel-head panel-head--plain panel-head--actions">
             <button class="ghost-button" type="button" data-app-view-target="ledger">去账本筛选</button>
           </div>
 
@@ -277,15 +261,15 @@
 
           <div class="visual-grid">
             <section class="visual-card">
-              <h3>本月支出分类</h3>
+              <h3>支出分类</h3>
               <div class="icon-board" id="expenseIconBoard"></div>
             </section>
             <section class="visual-card">
-              <h3>本月收入分类</h3>
+              <h3>收入分类</h3>
               <div class="icon-board" id="incomeIconBoard"></div>
             </section>
             <section class="visual-card visual-card--wide">
-              <h3>账户视图</h3>
+              <h3>账户</h3>
               <div class="account-board" id="accountBoard"></div>
             </section>
           </div>
@@ -298,7 +282,6 @@
 
       <section class="app-view" data-app-view="manage">
         <section class="view-headline">
-          <p class="eyebrow">Manage</p>
           <h2>设置</h2>
           <p class="muted">平时你只管记账，不常动的内容按组折叠，避免这一页变成长后台。</p>
         </section>
@@ -307,7 +290,6 @@
           <details class="panel manage-section" open>
             <summary class="manage-section-summary">
               <div class="manage-section-copy">
-                <p class="eyebrow">Templates / Backup</p>
                 <h2>模板与备份</h2>
                 <p class="muted">这一组最常用，默认展开。</p>
               </div>
@@ -383,7 +365,6 @@
           <details class="panel manage-section">
             <summary class="manage-section-summary">
               <div class="manage-section-copy">
-                <p class="eyebrow">Categories</p>
                 <h2>自定义分类</h2>
                 <p class="muted">可用于手动记录和中文文本识别。</p>
               </div>
@@ -421,7 +402,6 @@
           <details class="panel manage-section">
             <summary class="manage-section-summary">
               <div class="manage-section-copy">
-                <p class="eyebrow">Accounts</p>
                 <h2>账户</h2>
                 <p class="muted">支持现金、钱包、储蓄卡、信用卡。</p>
               </div>
@@ -466,7 +446,6 @@
           <details class="panel manage-section">
             <summary class="manage-section-summary">
               <div class="manage-section-copy">
-                <p class="eyebrow">Shortcuts</p>
                 <h2>快捷指令</h2>
                 <p class="muted">适合主屏幕图标、Action Button 或 Siri 口令。</p>
               </div>

@@ -83,7 +83,7 @@ textarea {
   margin: 0;
   font-family: inherit;
   letter-spacing: -0.02em;
-  font-size: clamp(1.16rem, 2.7vw, 1.56rem);
+  font-size: clamp(1.2rem, 2.9vw, 1.62rem);
   font-weight: 650;
   white-space: nowrap;
   overflow: hidden;
@@ -135,7 +135,7 @@ textarea {
 }
 
 .app-nav-button strong {
-  font-size: 0.74rem;
+  font-size: 0.76rem;
   font-weight: 560;
   letter-spacing: 0.01em;
 }
@@ -216,7 +216,7 @@ textarea {
 
 .hero-title-block {
   display: grid;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 
@@ -248,7 +248,7 @@ textarea {
 
 .hero h1 {
   max-width: none;
-  font-size: clamp(1.36rem, 3.8vw, 1.84rem);
+  font-size: clamp(1.42rem, 4vw, 1.92rem);
   line-height: 1;
   white-space: nowrap;
   overflow: hidden;
@@ -266,7 +266,7 @@ textarea {
   max-width: 20rem;
   margin: 0;
   line-height: 1.35;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
 }
 
 .hero-badge {
@@ -354,13 +354,13 @@ textarea {
 .summary-card span {
   display: block;
   margin-bottom: 4px;
-  font-size: 0.64rem;
+  font-size: 0.66rem;
   color: var(--muted);
 }
 
 .summary-card strong {
   display: block;
-  font-size: clamp(0.88rem, 2.2vw, 1.02rem);
+  font-size: clamp(0.92rem, 2.4vw, 1.08rem);
   letter-spacing: -0.02em;
 }
 
@@ -418,11 +418,23 @@ textarea {
 }
 
 .panel-head h2 {
-  font-size: clamp(0.94rem, 2.3vw, 1.08rem);
+  font-size: clamp(0.98rem, 2.4vw, 1.12rem);
 }
 
 .panel-head--tight {
   align-items: end;
+}
+
+.panel-head--plain {
+  justify-content: flex-start;
+}
+
+.panel-head--actions {
+  justify-content: flex-end;
+}
+
+.panel-head--plain .muted {
+  margin: 0;
 }
 
 .smart-grid,
@@ -470,7 +482,7 @@ textarea {
 }
 
 .field span {
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   color: var(--muted);
   letter-spacing: 0.02em;
 }
@@ -540,7 +552,7 @@ textarea {
   min-height: 36px;
   padding: 0 12px;
   border-radius: 12px;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
 }
 
 .toggle {
@@ -653,7 +665,7 @@ textarea {
 }
 
 .preset-button strong {
-  font-size: 0.76rem;
+  font-size: 0.78rem;
   font-weight: 600;
 }
 
@@ -669,7 +681,7 @@ textarea {
   background: var(--surface-quiet);
   border: 1px solid rgba(23, 27, 25, 0.04);
   line-height: 1.5;
-  font-size: 0.74rem;
+  font-size: 0.76rem;
 }
 
 .entry-mode {
@@ -690,7 +702,7 @@ textarea {
 }
 
 .budget-head h3 {
-  font-size: 0.92rem;
+  font-size: 0.96rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -863,7 +875,7 @@ textarea {
 .account-main strong,
 .entry-amount strong,
 .account-side strong {
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   font-weight: 600;
 }
 
@@ -1031,7 +1043,7 @@ textarea {
 
 .visual-card h3 {
   margin-bottom: 6px;
-  font-size: 0.86rem;
+  font-size: 0.9rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1124,7 +1136,7 @@ textarea {
 .empty-state {
   padding: 12px 0 2px;
   color: var(--muted);
-  font-size: 0.76rem;
+  font-size: 0.78rem;
 }
 
 .badge {
@@ -1265,7 +1277,7 @@ button:disabled {
   }
 
   .app-nav-button strong {
-    font-size: 0.66rem;
+    font-size: 0.69rem;
   }
 
   .app-nav-button.is-active::after {
@@ -1287,13 +1299,13 @@ button:disabled {
   }
 
   .view-headline .muted,
-  .panel-head > .muted,
+  .panel-head:not(.panel-head--plain) > .muted,
   .manage-section-copy .muted {
     display: none;
   }
 
   .view-headline h2 {
-    font-size: 1.02rem;
+    font-size: 1.08rem;
   }
 
   .summary-grid {
@@ -1317,11 +1329,11 @@ button:disabled {
   }
 
   .summary-card span {
-    font-size: 0.58rem;
+    font-size: 0.6rem;
   }
 
   .summary-card strong {
-    font-size: 0.78rem;
+    font-size: 0.82rem;
   }
 
   .panel,
@@ -1341,7 +1353,7 @@ button:disabled {
   .panel-head h2,
   .budget-head h3,
   .visual-card h3 {
-    font-size: 0.82rem;
+    font-size: 0.86rem;
   }
 
   .field input,
@@ -1349,7 +1361,7 @@ button:disabled {
   .field textarea {
     min-height: 38px;
     padding: 8px 9px;
-    font-size: 0.8rem;
+    font-size: 0.82rem;
   }
 
   .field textarea {
@@ -1357,12 +1369,12 @@ button:disabled {
   }
 
   .hero h1 {
-    font-size: 1.12rem;
+    font-size: 1.18rem;
     line-height: 1;
   }
 
   .hero-copy {
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     max-width: none;
   }
 
@@ -1382,11 +1394,11 @@ button:disabled {
   .primary-button,
   .danger-button {
     min-height: 34px;
-    font-size: 0.76rem;
+    font-size: 0.8rem;
   }
 
   .type-toggle--compact .toggle {
-    font-size: 0.7rem;
+    font-size: 0.72rem;
   }
 
   .example-strip,
@@ -1410,7 +1422,7 @@ button:disabled {
   .account-main strong,
   .entry-amount strong,
   .account-side strong {
-    font-size: 0.8rem;
+    font-size: 0.82rem;
   }
 
   .manage-copy span,
@@ -1421,7 +1433,7 @@ button:disabled {
   .account-side span,
   .mini-note,
   .empty-state {
-    font-size: 0.7rem;
+    font-size: 0.72rem;
   }
 
   .manage-section-summary {
