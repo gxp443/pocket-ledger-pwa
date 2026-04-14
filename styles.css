@@ -1144,16 +1144,16 @@ button:disabled {
 
 @media (max-width: 720px) {
   .app-shell {
-    padding-left: 12px;
-    padding-right: 12px;
+    padding-left: 10px;
+    padding-right: 10px;
   }
 
   .app-view.is-active {
-    gap: 12px;
+    gap: 10px;
   }
 
   .hero {
-    padding: 14px;
+    padding: 12px;
   }
 
   .summary-grid,
@@ -1186,17 +1186,17 @@ button:disabled {
   .app-nav {
     gap: 5px;
     padding: 5px;
-    width: min(calc(100% - 12px), 460px);
-    border-radius: 16px;
+    width: min(calc(100% - 10px), 440px);
+    border-radius: 14px;
   }
 
   .app-nav-button {
-    min-height: 40px;
-    padding: 6px 8px;
+    min-height: 36px;
+    padding: 4px 6px;
   }
 
   .app-nav-button strong {
-    font-size: 0.76rem;
+    font-size: 0.72rem;
   }
 
   .month-nav {
@@ -1223,27 +1223,27 @@ button:disabled {
   }
 
   .summary-card {
-    padding: 10px 9px;
+    padding: 8px;
   }
 
   .summary-card span {
-    font-size: 0.64rem;
+    font-size: 0.6rem;
   }
 
   .summary-card strong {
-    font-size: 0.82rem;
+    font-size: 0.76rem;
   }
 
   .year-chip {
-    padding: 8px 9px;
+    padding: 7px 8px;
   }
 
   .year-chip span {
-    font-size: 0.62rem;
+    font-size: 0.58rem;
   }
 
   .year-chip strong {
-    font-size: 0.78rem;
+    font-size: 0.72rem;
   }
 
   .panel,
@@ -1253,28 +1253,58 @@ button:disabled {
   }
 
   .panel {
-    padding: 12px;
+    padding: 10px;
   }
 
   .panel-head h2,
   .budget-head h3,
   .visual-card h3 {
-    font-size: 0.96rem;
+    font-size: 0.9rem;
   }
 
   .field input,
   .field select,
   .field textarea {
-    min-height: 42px;
-    padding: 10px 11px;
+    min-height: 40px;
+    padding: 9px 10px;
+    font-size: 0.88rem;
+  }
+
+  .hero h1 {
+    font-size: 1.46rem;
+    line-height: 1;
+  }
+
+  .hero-copy {
+    font-size: 0.86rem;
   }
 
   .manage-icon,
   .entry-badge,
   .icon-symbol,
   .account-symbol {
-    width: 30px;
-    height: 30px;
-    font-size: 0.86rem;
+    width: 28px;
+    height: 28px;
+    font-size: 0.8rem;
+  }
+
+  .manage-copy strong,
+  .entry-main strong,
+  .icon-main strong,
+  .account-main strong,
+  .entry-amount strong,
+  .account-side strong {
+    font-size: 0.84rem;
+  }
+
+  .manage-copy span,
+  .entry-main span,
+  .entry-amount span,
+  .icon-main span,
+  .account-main span,
+  .account-side span,
+  .mini-note,
+  .empty-state {
+    font-size: 0.72rem;
   }
 }
