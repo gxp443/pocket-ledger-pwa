@@ -42,8 +42,10 @@ const builtInCategories = [
 
 const builtInAccounts = [
   { id: "cash", name: "现金", bank: "", type: "cash", icon: "💵", keywords: ["现金"], builtIn: true },
-  { id: "wechat", name: "微信", bank: "", type: "wallet", icon: "🟩", keywords: ["微信"], builtIn: true },
-  { id: "alipay", name: "支付宝", bank: "", type: "wallet", icon: "🟦", keywords: ["支付宝", "花呗"], builtIn: true },
+  { id: "wechat", name: "微信", bank: "", type: "wallet", icon: "🟩", keywords: ["微信", "微信支付", "微信零钱"], builtIn: true },
+  { id: "alipay", name: "支付宝", bank: "", type: "wallet", icon: "🟦", keywords: ["支付宝", "支付宝支付", "花呗", "余额宝"], builtIn: true },
+  { id: "credit-default", name: "信用卡", bank: "", type: "credit", icon: "💳", keywords: ["信用卡", "刷卡", "贷记卡"], builtIn: true },
+  { id: "debit-default", name: "银行卡", bank: "", type: "debit", icon: "🏦", keywords: ["银行卡", "储蓄卡", "借记卡", "工资卡"], builtIn: true },
 ];
 
 const smartExamples = [
@@ -80,6 +82,13 @@ const expenseContextRules = [
   { includeAll: ["牌局", "输"] },
   { includeAll: ["赌球", "输"] },
   { includeAll: ["亏", "了"] },
+];
+const accountSemanticRules = [
+  { accountId: "wechat", keywords: ["微信支付", "微信", "微信零钱"] },
+  { accountId: "alipay", keywords: ["支付宝支付", "支付宝", "花呗", "余额宝"] },
+  { accountId: "credit-default", keywords: ["信用卡", "刷卡", "贷记卡"] },
+  { accountId: "debit-default", keywords: ["银行卡", "储蓄卡", "借记卡", "工资卡"] },
+  { accountId: "cash", keywords: ["现金", "付现", "现付"] },
 ];
 const breakfastFoodKeywords = ["早餐", "早饭", "豆浆", "油条", "包子", "馒头", "煎饼", "三明治"];
 const lunchCueKeywords = ["午饭", "午餐", "中饭", "中午", "工作餐"];
@@ -1834,7 +1843,11 @@ function parseNaturalText(text) {
       ? matchedCategory
       : matchCategoryWithinType(cleanText, normalizedText, type) || inferCategoryByMeaning(cleanText, normalizedText, type);
   const fallbackCategory = getCategories(type).find((item) => item.key === (type === "income" ? "other-income" : "other-expense"));
-  const account = matchAccount(cleanText, normalizedText) || getAccountById(state.settings.activeAccountId) || getAccounts()[0];
+  const account =
+    matchAccount(cleanText, normalizedText) ||
+    inferAccountByMeaning(cleanText, normalizedText) ||
+    getAccountById(state.settings.activeAccountId) ||
+    getAccounts()[0];
 
   return {
     amount,
@@ -1916,6 +1929,40 @@ function matchCategoryWithinType(text, normalizedText, type) {
 
 function matchAccount(text, normalizedText) {
   return chooseBestMatch(getAccounts(), (account) => accountMatchScore(account, text, normalizedText));
+}
+
+function inferAccountByMeaning(text, normalizedText) {
+  const semanticAccount = chooseBestMatch(
+    accountSemanticRules.map((rule) => ({
+      ...rule,
+      account: getAccountById(rule.accountId),
+    })),
+    (rule) => (rule.account ? keywordMatchScore(rule.keywords, text, normalizedText) : 0)
+  );
+
+  if (semanticAccount?.account) {
+    const preferredByType =
+      semanticAccount.account.type === "credit" || semanticAccount.account.type === "debit"
+        ? chooseAccountByTypePreference(semanticAccount.account.type)
+        : null;
+    return preferredByType || semanticAccount.account;
+  }
+
+  return null;
+}
+
+function chooseAccountByTypePreference(type) {
+  const activeAccount = getAccountById(state.settings.activeAccountId);
+  if (activeAccount?.type === type) {
+    return activeAccount;
+  }
+
+  const customAccounts = state.settings.customAccounts.filter((account) => account.type === type);
+  if (customAccounts.length === 1) {
+    return customAccounts[0];
+  }
+
+  return getAccounts().find((account) => account.type === type && account.builtIn) || getAccounts().find((account) => account.type === type) || null;
 }
 
 function inferCategoryByMeaning(text, normalizedText, type) {

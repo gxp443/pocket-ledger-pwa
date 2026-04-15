@@ -75,6 +75,24 @@ async function run() {
   assert.equal(detectType("打牌赢88"), "income", "打牌赢应识别为收入");
   assert.equal(detectType("麻将输200"), "expense", "麻将输应识别为支出");
 
+  const accountSnippet = [
+    sliceBetween(appText, "const builtInAccounts =", "const smartExamples ="),
+    sliceBetween(appText, "const accountSemanticRules =", "const breakfastFoodKeywords ="),
+    "const state = { settings: { activeAccountId: 'cash', customAccounts: [] } };",
+    "function getAccounts() { return [...builtInAccounts, ...state.settings.customAccounts]; }",
+    "function getAccountById(id) { return getAccounts().find((account) => account.id === id); }",
+    sliceBetween(appText, "function matchAccount(text, normalizedText) {", "function inferCategoryByMeaning(text, normalizedText, type) {"),
+    sliceBetween(appText, "function chooseBestMatch(items, scorer) {", "function extractTagsFromText(value) {"),
+  ].join("\n\n");
+  const { matchAccount, inferAccountByMeaning, normalizeText } = new Function(
+    `${accountSnippet}\nreturn { matchAccount, inferAccountByMeaning, normalizeText };`
+  )();
+
+  assert.equal(matchAccount("午饭20微信", normalizeText("午饭20微信"))?.id, "wechat", "微信应命中微信账户");
+  assert.equal(matchAccount("午饭20支付宝", normalizeText("午饭20支付宝"))?.id, "alipay", "支付宝应命中支付宝账户");
+  assert.equal(inferAccountByMeaning("午饭20信用卡", normalizeText("午饭20信用卡"))?.type, "credit", "信用卡应推断为信用卡账户");
+  assert.equal(inferAccountByMeaning("午饭20银行卡", normalizeText("午饭20银行卡"))?.type, "debit", "银行卡应推断为银行卡账户");
+
   console.log("Self-test passed: backup flow, cache policy, UI hooks, and parser smoke cases are valid.");
 }
 
