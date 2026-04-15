@@ -1,3 +1,4 @@
+const backupCore = globalThis.PocketLedgerBackupCore;
 const ENTRY_STORAGE_KEY = "pocket-ledger-entries-v2";
 const SETTINGS_STORAGE_KEY = "pocket-ledger-settings-v2";
 const LEGACY_ENTRY_STORAGE_KEY = "pocket-ledger-entries-v1";
@@ -7,6 +8,19 @@ const APP_VIEWS = ["home", "ledger", "insights", "manage"];
 const BACKUP_REMINDER_OPTIONS = [0, 3, 7, 14, 30];
 const BACKUP_REMINDER_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 const CLIPBOARD_BACKUP_SOFT_LIMIT = 180 * 1024;
+const ENTRY_LOCAL_MIRROR_SOFT_LIMIT = 600 * 1024;
+const LOCAL_SNAPSHOT_LIMIT = 3;
+const AUTO_SNAPSHOT_COOLDOWN_MS = 15 * 60 * 1000;
+const LEDGER_DB_NAME = "pocket-ledger-db";
+const LEDGER_DB_VERSION = 1;
+const LEDGER_KV_STORE = "ledger-kv";
+const IDB_SETTINGS_KEY = "settings";
+const IDB_ENTRIES_KEY = "entries";
+const IDB_SNAPSHOTS_KEY = "snapshots";
+
+if (!backupCore) {
+  throw new Error("PocketLedgerBackupCore 未加载");
+}
 
 const builtInCategories = [
   { key: "breakfast", label: "早餐", icon: "🥐", type: "expense", keywords: ["早餐", "早饭", "豆浆", "包子", "油条", "煎饼"], builtIn: true },
@@ -145,10 +159,12 @@ const dom = {
   templateAccountInput: document.querySelector("#templateAccountInput"),
   templateTagsInput: document.querySelector("#templateTagsInput"),
   exportJsonButton: document.querySelector("#exportJsonButton"),
+  downloadTransferButton: document.querySelector("#downloadTransferButton"),
   copyJsonBackupButton: document.querySelector("#copyJsonBackupButton"),
   importClipboardButton: document.querySelector("#importClipboardButton"),
   importJsonButton: document.querySelector("#importJsonButton"),
   shareJsonButton: document.querySelector("#shareJsonButton"),
+  restoreSnapshotButton: document.querySelector("#restoreSnapshotButton"),
   carryoverButton: document.querySelector("#carryoverButton"),
   backupStatus: document.querySelector("#backupStatus"),
   backupHealth: document.querySelector("#backupHealth"),
@@ -208,6 +224,13 @@ let state = {
   editingTemplateId: null,
 };
 
+const runtime = {
+  dbPromise: null,
+  storageDriver: "localStorage",
+  autoSnapshotTimer: 0,
+  reloadingForUpdate: false,
+};
+
 function createDefaultBackupMeta() {
   return {
     baselineAt: "",
@@ -215,6 +238,8 @@ function createDefaultBackupMeta() {
     lastDataChangeAt: "",
     changeCountSinceBackup: 0,
     lastReminderAt: "",
+    lastLocalSnapshotAt: "",
+    localSnapshotCount: 0,
   };
 }
 
@@ -225,13 +250,16 @@ function normalizeBackupMeta(meta) {
     lastDataChangeAt: String(meta?.lastDataChangeAt || ""),
     changeCountSinceBackup: Math.max(0, Number(meta?.changeCountSinceBackup) || 0),
     lastReminderAt: String(meta?.lastReminderAt || ""),
+    lastLocalSnapshotAt: String(meta?.lastLocalSnapshotAt || ""),
+    localSnapshotCount: Math.max(0, Number(meta?.localSnapshotCount) || 0),
   };
 }
 
-function boot() {
-  migrateLegacyData();
-  state.settings = loadSettings();
-  state.entries = loadEntries();
+async function boot() {
+  await migrateLegacyData();
+  state.settings = await loadSettings();
+  state.entries = await loadEntries();
+  await syncLocalSnapshotMeta();
   ensureSelectionIntegrity();
   bindEvents();
   renderStaticCollections();
@@ -264,13 +292,74 @@ function createDefaultSettings() {
   };
 }
 
-function loadSettings() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(SETTINGS_STORAGE_KEY) || "null");
-    return normalizeSettings({ ...createDefaultSettings(), ...(parsed || {}) });
-  } catch {
-    return normalizeSettings(createDefaultSettings());
+function canUseIndexedDb() {
+  return typeof indexedDB !== "undefined";
+}
+
+function openLedgerDatabase() {
+  if (!canUseIndexedDb()) {
+    return Promise.resolve(null);
   }
+
+  if (!runtime.dbPromise) {
+    runtime.dbPromise = new Promise((resolve) => {
+      const request = indexedDB.open(LEDGER_DB_NAME, LEDGER_DB_VERSION);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(LEDGER_KV_STORE)) {
+          db.createObjectStore(LEDGER_KV_STORE);
+        }
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        db.onversionchange = () => db.close();
+        runtime.storageDriver = "IndexedDB";
+        resolve(db);
+      };
+      request.onerror = () => {
+        runtime.storageDriver = "localStorage";
+        resolve(null);
+      };
+    });
+  }
+
+  return runtime.dbPromise;
+}
+
+async function idbGetValue(key) {
+  const db = await openLedgerDatabase();
+  if (!db) {
+    return null;
+  }
+
+  return await new Promise((resolve) => {
+    const transaction = db.transaction(LEDGER_KV_STORE, "readonly");
+    const request = transaction.objectStore(LEDGER_KV_STORE).get(key);
+    request.onsuccess = () => resolve(request.result ?? null);
+    request.onerror = () => resolve(null);
+  });
+}
+
+async function idbSetValue(key, value) {
+  const db = await openLedgerDatabase();
+  if (!db) {
+    return false;
+  }
+
+  return await new Promise((resolve) => {
+    const transaction = db.transaction(LEDGER_KV_STORE, "readwrite");
+    transaction.oncomplete = () => resolve(true);
+    transaction.onerror = () => resolve(false);
+    transaction.objectStore(LEDGER_KV_STORE).put(value, key);
+  });
+}
+
+async function loadSettings() {
+  const storedSettings = (await idbGetValue(IDB_SETTINGS_KEY)) || readLocalJson(SETTINGS_STORAGE_KEY, null);
+  if (storedSettings) {
+    void idbSetValue(IDB_SETTINGS_KEY, storedSettings);
+  }
+  return normalizeSettings({ ...createDefaultSettings(), ...(storedSettings || {}) });
 }
 
 function normalizeSettings(settings) {
@@ -300,34 +389,73 @@ function normalizeSettings(settings) {
   };
 }
 
-function loadEntries() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(ENTRY_STORAGE_KEY) || "[]");
-    return Array.isArray(parsed)
-      ? parsed.map((entry) => ({
-          ...entry,
-          tags: normalizeTags(entry.tags || []),
-        }))
-      : [];
-  } catch {
-    return [];
+function normalizeEntryRecords(entries) {
+  return Array.isArray(entries)
+    ? entries.map((entry) => ({
+        ...entry,
+        id: entry.id || crypto.randomUUID(),
+        amount: Number(entry.amount) || 0,
+        tags: normalizeTags(entry.tags || []),
+        createdAt: entry.createdAt || new Date().toISOString(),
+      }))
+    : [];
+}
+
+async function loadEntries() {
+  const storedEntries = await idbGetValue(IDB_ENTRIES_KEY);
+  if (Array.isArray(storedEntries)) {
+    return normalizeEntryRecords(storedEntries);
   }
+
+  const localEntries = readLocalJson(ENTRY_STORAGE_KEY, []);
+  if (Array.isArray(localEntries) && localEntries.length) {
+    void idbSetValue(IDB_ENTRIES_KEY, localEntries);
+  }
+  return normalizeEntryRecords(localEntries);
 }
 
 function persistSettings() {
-  localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(state.settings));
+  try {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(state.settings));
+  } catch {}
+  void idbSetValue(IDB_SETTINGS_KEY, state.settings);
 }
 
 function persistEntries() {
-  localStorage.setItem(ENTRY_STORAGE_KEY, JSON.stringify(state.entries));
+  void idbSetValue(IDB_ENTRIES_KEY, state.entries);
+  tryPersistEntryMirror();
 }
 
-function migrateLegacyData() {
-  if (!localStorage.getItem(ENTRY_STORAGE_KEY)) {
-    try {
-      const legacyEntries = JSON.parse(localStorage.getItem(LEGACY_ENTRY_STORAGE_KEY) || "[]");
+function tryPersistEntryMirror() {
+  try {
+    const raw = JSON.stringify(state.entries);
+    if (backupCore.getTextByteLength(raw) <= ENTRY_LOCAL_MIRROR_SOFT_LIMIT) {
+      localStorage.setItem(ENTRY_STORAGE_KEY, raw);
+    }
+  } catch {}
+}
+
+function readLocalJson(storageKey, fallbackValue) {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    return raw ? JSON.parse(raw) : fallbackValue;
+  } catch {
+    return fallbackValue;
+  }
+}
+
+async function migrateLegacyData() {
+  if (!(await idbGetValue(IDB_SETTINGS_KEY))) {
+    const storedSettings = readLocalJson(SETTINGS_STORAGE_KEY, null);
+    await idbSetValue(IDB_SETTINGS_KEY, storedSettings || createDefaultSettings());
+  }
+
+  if (!Array.isArray(await idbGetValue(IDB_ENTRIES_KEY))) {
+    let entries = readLocalJson(ENTRY_STORAGE_KEY, null);
+    if (!Array.isArray(entries) || !entries.length) {
+      const legacyEntries = readLocalJson(LEGACY_ENTRY_STORAGE_KEY, []);
       if (Array.isArray(legacyEntries) && legacyEntries.length) {
-        const migrated = legacyEntries.map((entry) => ({
+        entries = legacyEntries.map((entry) => ({
           id: entry.id || crypto.randomUUID(),
           amount: Number(entry.amount) || 0,
           note: entry.note || getCategoryByKey(entry.category)?.label || "迁移记录",
@@ -338,15 +466,9 @@ function migrateLegacyData() {
           source: entry.source || "legacy",
           createdAt: entry.createdAt || new Date().toISOString(),
         }));
-        localStorage.setItem(ENTRY_STORAGE_KEY, JSON.stringify(migrated));
       }
-    } catch {
-      // ignore migration errors
     }
-  }
-
-  if (!localStorage.getItem(SETTINGS_STORAGE_KEY)) {
-    persistSettings();
+    await idbSetValue(IDB_ENTRIES_KEY, Array.isArray(entries) ? entries : []);
   }
 }
 
@@ -517,10 +639,12 @@ function bindEvents() {
   dom.templateTypeInput.addEventListener("change", renderTemplateOptions);
   dom.templateList.addEventListener("click", handleTemplateAction);
   dom.exportJsonButton.addEventListener("click", exportJsonBackup);
+  dom.downloadTransferButton.addEventListener("click", downloadTransferBackup);
   dom.copyJsonBackupButton.addEventListener("click", copyJsonBackup);
   dom.importClipboardButton.addEventListener("click", importClipboardBackup);
   dom.importJsonButton.addEventListener("click", () => dom.jsonFileInput.click());
   dom.shareJsonButton.addEventListener("click", shareJsonBackup);
+  dom.restoreSnapshotButton.addEventListener("click", restoreLatestSnapshot);
   dom.jsonFileInput.addEventListener("change", importJsonBackup);
   dom.backupReminderSelect.addEventListener("change", handleBackupReminderChange);
   dom.carryoverButton.addEventListener("click", createMonthlyCarryover);
@@ -663,6 +787,8 @@ function renderBudget() {
 
 function renderBackupPanel() {
   const insight = getBackupInsight();
+  const backupMeta = normalizeBackupMeta(state.settings.backupMeta);
+  const hasLedgerData = hasMeaningfulLedgerData();
   dom.backupReminderSelect.value = String(state.settings.backupReminderDays);
   dom.backupHealth.className = `backup-health backup-health--${insight.level}`;
   dom.backupHealth.innerHTML = `
@@ -670,17 +796,24 @@ function renderBackupPanel() {
     <span>${escapeHtml(insight.summary)}</span>
   `;
   dom.backupStatus.innerHTML = insight.details.map((line) => escapeHtml(line)).join("<br />");
+  dom.exportJsonButton.disabled = !hasLedgerData;
+  dom.downloadTransferButton.disabled = !hasLedgerData;
+  dom.copyJsonBackupButton.disabled = !hasLedgerData;
+  dom.shareJsonButton.disabled = !hasLedgerData;
+  dom.restoreSnapshotButton.disabled = backupMeta.localSnapshotCount <= 0;
 }
 
 function getBackupInsight() {
   const meta = normalizeBackupMeta(state.settings.backupMeta);
   const reminderDays = state.settings.backupReminderDays;
   const changeCount = meta.changeCountSinceBackup;
-  const hasEntries = state.entries.length > 0;
   const hasBaseline = Boolean(meta.baselineAt);
   const daysSinceBackup = hasBaseline ? getElapsedDays(meta.baselineAt) : null;
   const standalone = isStandaloneMode();
-  const backupSizeBytes = hasEntries ? getTextByteLength(serializeBackupPayload(createBackupPayload(meta.baselineAt || new Date().toISOString()), false)) : 0;
+  const hasLedgerData = hasMeaningfulLedgerData();
+  const backupSizeBytes = hasLedgerData
+    ? backupCore.getTextByteLength(backupCore.serializeBackupPayload(createBackupPayload(meta.baselineAt || new Date().toISOString()), false))
+    : 0;
   const overdueByAge = Boolean(reminderDays && hasBaseline && daysSinceBackup >= reminderDays);
   const severeAge = Boolean(reminderDays && hasBaseline && daysSinceBackup >= reminderDays * 2);
   const severeChanges = changeCount >= 12;
@@ -690,16 +823,18 @@ function getBackupInsight() {
   let title = "备份状态稳定";
   let summary = "最近一份 JSON 备份还算新，暂时不用着急。";
 
-  if (!hasEntries) {
+  if (!hasLedgerData) {
     level = "idle";
     title = "还没有账本数据";
     summary = standalone
-      ? "主屏幕版现在还是一份空白本地账本。如果 Safari 里有旧数据，先用“复制备份”再来这里“剪贴板导入”。"
+      ? "主屏幕版现在还是一份空白本地账本。如果 Safari 里有旧数据，优先用“下载压缩”或“导入文件”迁过来。"
       : "等你开始记账后，这里会提醒你导出一份 JSON 备份。";
   } else if (!hasBaseline) {
     level = "danger";
     title = "还没做过 JSON 备份";
-    summary = `已经有 ${state.entries.length} 笔记录，建议现在导出到 iCloud Drive。`;
+    summary = state.entries.length
+      ? `已经有 ${state.entries.length} 笔记录，建议现在导出到 iCloud Drive。`
+      : "已经有模板或自定义配置，建议现在导出一份备份。";
   } else if (severeAge || severeChanges) {
     level = "danger";
     title = "备份已经偏旧";
@@ -718,13 +853,17 @@ function getBackupInsight() {
 
   const details = [
     `当前运行环境：${standalone ? "主屏幕 App" : "Safari / 浏览器"}`,
+    `当前主存储：${runtime.storageDriver}${runtime.storageDriver === "IndexedDB" ? "（大账本模式）" : "（兼容回退）"}`,
     hasBaseline ? `最近一份备份时间：${formatFullDate(meta.baselineAt)}（${formatElapsedDays(daysSinceBackup)}）` : "最近一份备份时间：还没有",
     hasBaseline ? `备份后新增 / 修改：${changeCount} 次` : `当前记录数：${state.entries.length} 笔`,
-    hasEntries ? `当前账本体积：约 ${formatByteSize(backupSizeBytes)}` : "当前账本体积：还没有账本数据",
+    hasLedgerData ? `当前账本体积：约 ${backupCore.formatByteSize(backupSizeBytes)}` : "当前账本体积：还没有账本数据",
+    meta.localSnapshotCount
+      ? `本机快照：${meta.localSnapshotCount} 份，最近一份在 ${formatFullDate(meta.lastLocalSnapshotAt)}`
+      : "本机快照：还没有，导入前会自动保一份，日常改动也会按节奏自动留存",
     meta.importedAt ? `最近一次导入：${formatFullDate(meta.importedAt)}` : "最近一次导入：还没有",
     reminderDays ? `提醒频率：每 ${reminderDays} 天检查一次` : "提醒频率：已关闭主动提醒",
-    "iPhone 上 Safari 和主屏幕版默认不共享这份本地数据；少量数据可用“复制备份” -> “剪贴板导入”。",
-    "数据一多时，优先用“系统分享”或“导出 JSON”；文件导入同时支持 JSON 和压缩备份文本。",
+    "iPhone 上 Safari 和主屏幕版默认不共享这份本地数据；剪贴板只适合少量迁移。",
+    "大数据迁移优先走“下载压缩”或“系统分享” -> “导入文件”；文件导入同时支持 JSON 和压缩备份文本。",
   ];
 
   return { level, title, summary, details };
@@ -1375,6 +1514,7 @@ function markBackupDirty() {
     changeCountSinceBackup: meta.changeCountSinceBackup + 1,
   };
   persistSettings();
+  scheduleAutoSnapshot("数据变更");
 }
 
 function markBackupFresh(baselineAt) {
@@ -1428,7 +1568,7 @@ function maybeShowBackupReminder(options = {}) {
 }
 
 function getBackupReminderMessage() {
-  if (!state.entries.length || !state.settings.backupReminderDays) {
+  if (!hasMeaningfulLedgerData() || !state.settings.backupReminderDays) {
     return "";
   }
 
@@ -2197,53 +2337,62 @@ function createBackupPayload(exportedAt = new Date().toISOString()) {
   };
 }
 
-function getBackupFilename(exportedAt = new Date().toISOString()) {
-  return `pocket-ledger-backup-${exportedAt.slice(0, 10)}.json`;
-}
-
-function getTransferFilename(exportedAt = new Date().toISOString()) {
-  return `pocket-ledger-transfer-${exportedAt.slice(0, 10)}.txt`;
-}
-
-function serializeBackupPayload(payload, pretty = true) {
-  return JSON.stringify(payload, null, pretty ? 2 : 0);
+function hasMeaningfulLedgerData() {
+  return Boolean(
+    state.entries.length ||
+      state.settings.customCategories.length ||
+      state.settings.customAccounts.length ||
+      state.settings.templates.length ||
+      state.settings.monthlyBudget
+  );
 }
 
 async function buildBackupTransferBundle() {
   const payload = createBackupPayload();
-  const rawText = serializeBackupPayload(payload, false);
-  const transferText = await encodeBackupTransfer(rawText);
+  const rawText = backupCore.serializeBackupPayload(payload, false);
+  const transferText = await backupCore.encodeBackupTransfer(rawText);
   return {
     payload,
     rawText,
     transferText,
-    rawBytes: getTextByteLength(rawText),
-    transferBytes: getTextByteLength(transferText),
-    compressed: transferText.startsWith("PLZ1:"),
+    rawBytes: backupCore.getTextByteLength(rawText),
+    transferBytes: backupCore.getTextByteLength(transferText),
+    compressed: transferText.startsWith(backupCore.BACKUP_TRANSFER_PREFIX),
   };
+}
+
+function downloadBlob(content, type, filename) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 function exportJsonBackup() {
   const payload = createBackupPayload();
-  const backupText = serializeBackupPayload(payload);
+  const backupText = backupCore.serializeBackupPayload(payload);
   markBackupFresh(payload.exportedAt);
-
-  const blob = new Blob([backupText], { type: "application/json;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = getBackupFilename(payload.exportedAt);
-  anchor.click();
-  URL.revokeObjectURL(url);
+  downloadBlob(backupText, "application/json;charset=utf-8;", backupCore.getBackupFilename(payload.exportedAt));
   renderBackupPanel();
   showToast("JSON 备份已导出，请确认文件已保存到 iCloud Drive");
+}
+
+async function downloadTransferBackup() {
+  const bundle = await buildBackupTransferBundle();
+  downloadBlob(bundle.transferText, "text/plain;charset=utf-8;", backupCore.getTransferFilename(bundle.payload.exportedAt));
+  markBackupFresh(bundle.payload.exportedAt);
+  renderBackupPanel();
+  showToast(`压缩备份已下载，约 ${backupCore.formatByteSize(bundle.transferBytes)}，可直接用“导入文件”恢复`);
 }
 
 async function copyJsonBackup() {
   const bundle = await buildBackupTransferBundle();
   const successMessage =
     bundle.transferBytes > CLIPBOARD_BACKUP_SOFT_LIMIT
-      ? `压缩备份已复制，约 ${formatByteSize(bundle.transferBytes)}，如果导入不稳请改用系统分享`
+      ? `压缩备份已复制，约 ${backupCore.formatByteSize(bundle.transferBytes)}，如果导入不稳请改用下载压缩或系统分享`
       : "压缩备份已复制，去主屏幕版直接粘贴导入";
   const copied = await copyText(bundle.transferText, successMessage, null);
   if (!copied) {
@@ -2255,7 +2404,9 @@ async function copyJsonBackup() {
 
 async function shareJsonBackup() {
   const bundle = await buildBackupTransferBundle();
-  const filename = bundle.compressed ? getTransferFilename(bundle.payload.exportedAt) : getBackupFilename(bundle.payload.exportedAt);
+  const filename = bundle.compressed
+    ? backupCore.getTransferFilename(bundle.payload.exportedAt)
+    : backupCore.getBackupFilename(bundle.payload.exportedAt);
   const shareText = bundle.compressed ? bundle.transferText : bundle.rawText;
   const fileType = bundle.compressed ? "text/plain" : "application/json";
 
@@ -2278,7 +2429,7 @@ async function shareJsonBackup() {
     }
   }
 
-  exportJsonBackup();
+  await downloadTransferBackup();
 }
 
 function importJsonBackup(event) {
@@ -2304,7 +2455,7 @@ async function importClipboardBackup() {
   } catch {}
 
   if (!text.trim()) {
-    text = window.prompt("把备份 JSON 粘贴到这里") || "";
+    text = window.prompt("把备份文本或 JSON 粘贴到这里") || "";
   }
 
   if (!text.trim()) {
@@ -2317,7 +2468,7 @@ async function importClipboardBackup() {
 
 async function importBackupText(rawText, sourceLabel) {
   try {
-    const decodedText = await decodeBackupTransfer(String(rawText || ""));
+    const decodedText = await backupCore.decodeBackupTransfer(String(rawText || ""));
     const parsed = JSON.parse(decodedText);
     if (!Array.isArray(parsed.entries) || typeof parsed.settings !== "object" || !parsed.settings) {
       throw new Error("invalid shape");
@@ -2328,16 +2479,12 @@ async function importBackupText(rawText, sourceLabel) {
       return;
     }
 
+    if (hasMeaningfulLedgerData()) {
+      await saveLocalSnapshot(`${sourceLabel} 导入前`, { force: true, silent: true });
+    }
+
     state.settings = normalizeSettings(parsed.settings);
-    state.entries = Array.isArray(parsed.entries)
-      ? parsed.entries.map((entry) => ({
-          ...entry,
-          id: entry.id || crypto.randomUUID(),
-          amount: Number(entry.amount) || 0,
-          tags: normalizeTags(entry.tags || []),
-          createdAt: entry.createdAt || new Date().toISOString(),
-        }))
-      : [];
+    state.entries = normalizeEntryRecords(parsed.entries);
     state.editingEntryId = null;
     state.editingTemplateId = null;
     state.undoDeletion = null;
@@ -2352,68 +2499,96 @@ async function importBackupText(rawText, sourceLabel) {
   }
 }
 
-async function encodeBackupTransfer(text) {
-  if (typeof CompressionStream !== "function") {
-    return text;
-  }
-
-  try {
-    const compressedStream = new Blob([text]).stream().pipeThrough(new CompressionStream("gzip"));
-    const buffer = await new Response(compressedStream).arrayBuffer();
-    return `PLZ1:${arrayBufferToBase64(buffer)}`;
-  } catch {
-    return text;
-  }
+async function loadLocalSnapshots() {
+  const snapshots = await idbGetValue(IDB_SNAPSHOTS_KEY);
+  return Array.isArray(snapshots) ? snapshots : [];
 }
 
-async function decodeBackupTransfer(text) {
-  const value = String(text || "").trim();
-  if (!value.startsWith("PLZ1:")) {
-    return value;
+async function persistLocalSnapshots(snapshots) {
+  const limitedSnapshots = snapshots.slice(0, LOCAL_SNAPSHOT_LIMIT);
+  const saved = await idbSetValue(IDB_SNAPSHOTS_KEY, limitedSnapshots);
+  if (!saved) {
+    return [];
   }
-
-  if (typeof DecompressionStream !== "function") {
-    throw new Error("decompression unsupported");
-  }
-
-  const base64 = value.slice(5);
-  const compressedBytes = base64ToUint8Array(base64);
-  const decompressedStream = new Blob([compressedBytes]).stream().pipeThrough(new DecompressionStream("gzip"));
-  return await new Response(decompressedStream).text();
+  const meta = normalizeBackupMeta(state.settings.backupMeta);
+  state.settings.backupMeta = {
+    ...meta,
+    localSnapshotCount: limitedSnapshots.length,
+    lastLocalSnapshotAt: limitedSnapshots[0]?.createdAt || "",
+  };
+  persistSettings();
+  return limitedSnapshots;
 }
 
-function arrayBufferToBase64(buffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    const chunk = bytes.subarray(i, i + 0x8000);
-    binary += String.fromCharCode(...chunk);
+async function syncLocalSnapshotMeta() {
+  const snapshots = await loadLocalSnapshots();
+  const meta = normalizeBackupMeta(state.settings.backupMeta);
+  const latestSnapshotAt = snapshots[0]?.createdAt || "";
+  if (meta.localSnapshotCount === snapshots.length && meta.lastLocalSnapshotAt === latestSnapshotAt) {
+    return;
   }
-  return btoa(binary);
+  state.settings.backupMeta = {
+    ...meta,
+    localSnapshotCount: snapshots.length,
+    lastLocalSnapshotAt: latestSnapshotAt,
+  };
+  persistSettings();
 }
 
-function base64ToUint8Array(base64) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
+async function saveLocalSnapshot(reason, options = {}) {
+  const { force = false, silent = false } = options;
+  if (!hasMeaningfulLedgerData()) {
+    return false;
   }
-  return bytes;
+
+  const meta = normalizeBackupMeta(state.settings.backupMeta);
+  const lastSnapshotAt = Date.parse(meta.lastLocalSnapshotAt || "");
+  if (!force && Number.isFinite(lastSnapshotAt) && Date.now() - lastSnapshotAt < AUTO_SNAPSHOT_COOLDOWN_MS) {
+    return false;
+  }
+
+  const bundle = await buildBackupTransferBundle();
+  const snapshots = await loadLocalSnapshots();
+  if (snapshots[0]?.transferText === bundle.transferText) {
+    return false;
+  }
+
+  const persistedSnapshots = await persistLocalSnapshots([
+    {
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      reason,
+      entryCount: state.entries.length,
+      transferBytes: bundle.transferBytes,
+      transferText: bundle.transferText,
+    },
+    ...snapshots,
+  ]);
+  if (!persistedSnapshots.length) {
+    return false;
+  }
+
+  if (!silent) {
+    showToast("本机快照已保存");
+  }
+  return true;
 }
 
-function getTextByteLength(text) {
-  return new TextEncoder().encode(String(text || "")).length;
+function scheduleAutoSnapshot(reason) {
+  window.clearTimeout(runtime.autoSnapshotTimer);
+  runtime.autoSnapshotTimer = window.setTimeout(() => {
+    void saveLocalSnapshot(reason, { silent: true });
+  }, 1200);
 }
 
-function formatByteSize(bytes) {
-  const value = Math.max(0, Number(bytes) || 0);
-  if (value < 1024) {
-    return `${value} B`;
+async function restoreLatestSnapshot() {
+  const snapshots = await loadLocalSnapshots();
+  const latestSnapshot = snapshots[0];
+  if (!latestSnapshot) {
+    showToast("还没有可恢复的本机快照");
+    return;
   }
-  if (value < 1024 * 1024) {
-    return `${(value / 1024).toFixed(value >= 10 * 1024 ? 0 : 1)} KB`;
-  }
-  return `${(value / (1024 * 1024)).toFixed(value >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+  await importBackupText(latestSnapshot.transferText, "最近快照");
 }
 
 function createMonthlyCarryover() {
@@ -2603,14 +2778,14 @@ function downloadShortcutGuide() {
 }
 
 async function copyText(text, successMessage, statusTarget = dom.shortcutStatus) {
-  const textBytes = getTextByteLength(text);
+  const textBytes = backupCore.getTextByteLength(text);
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
     } else if (textBytes <= CLIPBOARD_BACKUP_SOFT_LIMIT) {
       window.prompt("复制下面的内容", text);
     } else {
-      showToast("当前环境不适合复制大备份，请改用系统分享或导出 JSON");
+      showToast("当前环境不适合复制大备份，请改用下载压缩或系统分享");
       return false;
     }
     if (statusTarget) {
@@ -2620,7 +2795,7 @@ async function copyText(text, successMessage, statusTarget = dom.shortcutStatus)
     return true;
   } catch {
     if (textBytes > CLIPBOARD_BACKUP_SOFT_LIMIT) {
-      showToast("复制失败，数据偏大，请改用系统分享或导出 JSON");
+      showToast("复制失败，数据偏大，请改用下载压缩或系统分享");
       return false;
     }
     window.prompt("复制下面的内容", text);
@@ -2679,10 +2854,33 @@ function isStandaloneMode() {
 
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js").catch(() => {
+    window.addEventListener("load", async () => {
+      try {
+        const registration = await navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" });
+        if (registration.waiting) {
+          registration.waiting.postMessage("SKIP_WAITING");
+        }
+        registration.addEventListener("updatefound", () => {
+          const installingWorker = registration.installing;
+          if (!installingWorker) {
+            return;
+          }
+          installingWorker.addEventListener("statechange", () => {
+            if (installingWorker.state === "installed" && navigator.serviceWorker.controller) {
+              installingWorker.postMessage("SKIP_WAITING");
+            }
+          });
+        });
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          if (runtime.reloadingForUpdate) {
+            return;
+          }
+          runtime.reloadingForUpdate = true;
+          window.location.reload();
+        });
+      } catch {
         showToast("离线缓存注册失败");
-      });
+      }
     });
   }
 }
@@ -2705,4 +2903,7 @@ function showToast(message) {
   }, 2400);
 }
 
-boot();
+void boot().catch((error) => {
+  console.error(error);
+  showToast("启动失败，请重新打开页面");
+});

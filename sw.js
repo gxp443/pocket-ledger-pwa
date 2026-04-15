@@ -1,25 +1,39 @@
-const CACHE_NAME = "pocket-ledger-v11";
+const STATIC_CACHE_NAME = "pocket-ledger-static";
+const RUNTIME_CACHE_NAME = "pocket-ledger-runtime";
+const APP_CACHE_NAMES = [STATIC_CACHE_NAME, RUNTIME_CACHE_NAME];
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
+  "./backup-core.js",
   "./app.js",
   "./manifest.webmanifest",
   "./icons/app-icon.svg",
 ];
+const STATIC_ASSET_PATHS = new Set(ASSETS.map((asset) => new URL(asset, self.location.href).pathname));
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
+  event.waitUntil(caches.open(STATIC_CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
+      Promise.all(
+        keys
+          .filter((key) => key.startsWith("pocket-ledger") && !APP_CACHE_NAMES.includes(key))
+          .map((key) => caches.delete(key))
+      )
     )
   );
   self.clients.claim();
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("fetch", (event) => {
@@ -35,7 +49,7 @@ self.addEventListener("fetch", (event) => {
       fetch(event.request)
         .then((response) => {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put("./index.html", copy));
+          caches.open(RUNTIME_CACHE_NAME).then((cache) => cache.put("./index.html", copy));
           return response;
         })
         .catch(() => caches.match("./index.html"))
@@ -48,7 +62,8 @@ self.addEventListener("fetch", (event) => {
       fetch(event.request)
         .then((response) => {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          const targetCache = STATIC_ASSET_PATHS.has(requestUrl.pathname) ? STATIC_CACHE_NAME : RUNTIME_CACHE_NAME;
+          caches.open(targetCache).then((cache) => cache.put(event.request, copy));
           return response;
         })
         .catch(() => caches.match(event.request).then((cached) => cached || caches.match("./index.html")))
@@ -65,7 +80,7 @@ self.addEventListener("fetch", (event) => {
       return fetch(event.request)
         .then((response) => {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          caches.open(RUNTIME_CACHE_NAME).then((cache) => cache.put(event.request, copy));
           return response;
         })
         .catch(() => caches.match("./index.html"));

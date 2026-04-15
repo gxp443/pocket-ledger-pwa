@@ -294,10 +294,12 @@
             <div class="manage-section-body">
               <div class="panel-tools">
                 <button class="ghost-button" id="exportJsonButton" type="button">导出 JSON</button>
-                <button class="ghost-button" id="copyJsonBackupButton" type="button">复制备份</button>
+                <button class="ghost-button" id="downloadTransferButton" type="button">下载压缩</button>
+                <button class="ghost-button" id="copyJsonBackupButton" type="button">复制文本</button>
                 <button class="ghost-button" id="importClipboardButton" type="button">剪贴板导入</button>
                 <button class="ghost-button" id="importJsonButton" type="button">导入文件</button>
                 <button class="ghost-button" id="shareJsonButton" type="button">系统分享</button>
+                <button class="ghost-button" id="restoreSnapshotButton" type="button">恢复快照</button>
                 <button class="ghost-button" id="carryoverButton" type="button">生成本月结转</button>
               </div>
 
@@ -351,7 +353,7 @@
                     <span>等你开始记账后，这里会提醒你导出一份 JSON 备份。</span>
                   </div>
                   <div class="mini-note" id="backupStatus">
-                    JSON 备份会保存全部记录、分类、账户、模板和筛选设置。导入时会整体替换当前本地数据。
+                    导入时会整体替换当前本地数据。大数据优先走“下载压缩”或“系统分享”再“导入文件”，不要只依赖剪贴板。
                   </div>
                   <div class="manage-list" id="templateList"></div>
                 </div>
@@ -517,6 +519,7 @@
 
     <div class="toast" id="toast" aria-live="polite"></div>
 
+    <script src="backup-core.js" defer></script>
     <script src="app.js" defer></script>
   </body>
 </html>
