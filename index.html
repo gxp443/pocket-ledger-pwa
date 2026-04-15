@@ -28,6 +28,16 @@
             </div>
           </div>
           <p class="hero-copy">一句话输入，直接落账。</p>
+          <div class="reminder-strip" id="reminderStrip" hidden>
+            <div class="reminder-copy">
+              <strong id="reminderTitle">今天还没记账</strong>
+              <span id="reminderText">打开就提醒一下，补一笔就够了。</span>
+            </div>
+            <div class="reminder-actions">
+              <button class="ghost-button" id="reminderFocusButton" type="button">现在记</button>
+              <button class="ghost-button" id="dismissReminderButton" type="button">今天先不提醒</button>
+            </div>
+          </div>
           <section class="summary-grid summary-grid--focus" aria-label="本月总览">
             <article class="summary-card summary-card--expense">
               <span>支出</span>
@@ -440,6 +450,71 @@
               </form>
 
               <div class="manage-list" id="accountList"></div>
+            </div>
+          </details>
+
+          <details class="panel manage-section">
+            <summary class="manage-section-summary">
+              <div class="manage-section-copy">
+                <h2>提醒与截图</h2>
+                <p class="muted">把“容易忘记记账”和“付款截图转记账”收在这一组。</p>
+              </div>
+              <span class="manage-section-toggle">展开</span>
+            </summary>
+
+            <div class="manage-section-body">
+              <div class="reminder-grid">
+                <label class="reminder-card">
+                  <span class="reminder-card-title">午间补账</span>
+                  <div class="reminder-card-row">
+                    <input id="reminderLunchEnabled" data-reminder-key="lunch" data-reminder-field="enabled" type="checkbox" checked />
+                    <input id="reminderLunchTime" data-reminder-key="lunch" data-reminder-field="time" type="time" value="13:20" />
+                  </div>
+                </label>
+
+                <label class="reminder-card">
+                  <span class="reminder-card-title">晚饭后</span>
+                  <div class="reminder-card-row">
+                    <input id="reminderDinnerEnabled" data-reminder-key="dinner" data-reminder-field="enabled" type="checkbox" checked />
+                    <input id="reminderDinnerTime" data-reminder-key="dinner" data-reminder-field="time" type="time" value="19:40" />
+                  </div>
+                </label>
+
+                <label class="reminder-card">
+                  <span class="reminder-card-title">睡前补账</span>
+                  <div class="reminder-card-row">
+                    <input id="reminderNightEnabled" data-reminder-key="night" data-reminder-field="enabled" type="checkbox" checked />
+                    <input id="reminderNightTime" data-reminder-key="night" data-reminder-field="time" type="time" value="22:30" />
+                  </div>
+                </label>
+              </div>
+
+              <div class="mini-note" id="reminderStatus">
+                页面内会按时段提醒；如果想在 iPhone 上真正到点弹出，下面可直接复制快捷指令自动化模板。
+              </div>
+
+              <div class="shortcut-actions">
+                <button class="ghost-button" id="copyReminderGuide" type="button">复制提醒自动化模板</button>
+                <button class="ghost-button" id="downloadReminderGuide" type="button">下载提醒模板</button>
+                <button class="ghost-button" id="openReminderShortcutCreate" type="button">打开快捷指令新建页</button>
+              </div>
+
+              <div class="ocr-builder">
+                <label class="field">
+                  <span>截图快捷指令名</span>
+                  <input id="ocrShortcutName" type="text" value="Pocket Ledger 截图记账" maxlength="32" />
+                </label>
+
+                <div class="shortcut-actions">
+                  <button class="ghost-button" id="copyOcrAutoLink" type="button">复制 OCR 自动入账模板</button>
+                  <button class="ghost-button" id="copyOcrPreviewLink" type="button">复制 OCR 预览模板</button>
+                  <button class="ghost-button" id="downloadOcrGuide" type="button">下载 OCR 快捷指令模板</button>
+                </div>
+
+                <div class="mini-note" id="ocrStatus">
+                  推荐流程：付款截图 -> 分享到快捷指令 -> 提取图片文字 -> 打开页面自动入账。页面会优先识别金额、商户和支付账户。
+                </div>
+              </div>
             </div>
           </details>
 

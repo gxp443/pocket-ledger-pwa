@@ -281,6 +281,51 @@ textarea {
   font-size: 0.82rem;
 }
 
+.reminder-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(161, 91, 77, 0.12);
+  background: rgba(161, 91, 77, 0.08);
+}
+
+.reminder-strip--soft {
+  border-color: rgba(116, 120, 111, 0.16);
+  background: rgba(116, 120, 111, 0.08);
+}
+
+.reminder-strip--warning {
+  border-color: rgba(161, 91, 77, 0.14);
+  background: rgba(161, 91, 77, 0.08);
+}
+
+.reminder-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.reminder-copy strong {
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.reminder-copy span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.reminder-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .hero-badge {
   display: inline-flex;
   flex-direction: column;
@@ -826,6 +871,52 @@ textarea {
   margin-bottom: 8px;
 }
 
+.reminder-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.reminder-card,
+.ocr-builder {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.reminder-card-title {
+  font-size: 0.76rem;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.reminder-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.reminder-card-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--deep);
+}
+
+.reminder-card-row input[type="time"] {
+  width: min(100%, 116px);
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ink);
+}
+
 .small-field {
   min-width: 0;
 }
@@ -1227,7 +1318,8 @@ button:disabled {
   .visual-grid,
   .template-grid,
   .filter-toolbar,
-  .shortcut-builder {
+  .shortcut-builder,
+  .reminder-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1257,6 +1349,18 @@ button:disabled {
     align-items: center;
     flex-wrap: nowrap;
     gap: 8px;
+  }
+
+  .reminder-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .reminder-actions {
+    justify-content: flex-start;
+  }
+
+  .reminder-actions .ghost-button {
+    flex: 1 1 0;
   }
 
   .hero-title-block {

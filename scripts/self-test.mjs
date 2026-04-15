@@ -61,6 +61,8 @@ async function run() {
   assert.match(htmlText, /downloadTransferButton/, "页面应提供压缩备份下载入口");
   assert.match(htmlText, /restoreSnapshotButton/, "页面应提供快照恢复入口");
   assert.match(htmlText, /backup-core\.js/, "页面应先加载 backup-core.js");
+  assert.match(htmlText, /reminderStrip/, "首页应提供记账提醒条");
+  assert.match(htmlText, /copyOcrAutoLink/, "设置页应提供截图 OCR 模板入口");
 
   const appText = await readFile(new URL("../app.js", import.meta.url), "utf8");
   const parserSnippet = [
@@ -92,6 +94,59 @@ async function run() {
   assert.equal(matchAccount("午饭20支付宝", normalizeText("午饭20支付宝"))?.id, "alipay", "支付宝应命中支付宝账户");
   assert.equal(inferAccountByMeaning("午饭20信用卡", normalizeText("午饭20信用卡"))?.type, "credit", "信用卡应推断为信用卡账户");
   assert.equal(inferAccountByMeaning("午饭20银行卡", normalizeText("午饭20银行卡"))?.type, "debit", "银行卡应推断为银行卡账户");
+
+  const entrySnippet = [
+    sliceBetween(appText, "const builtInCategories =", "const accountTypeLabelMap ="),
+    "const state = { settings: { activeAccountId: 'cash', customAccounts: [], customCategories: [] }, entries: [] };",
+    "function getCategories(type) { const categories = [...builtInCategories, ...state.settings.customCategories]; return type ? categories.filter((category) => category.type === type) : categories; }",
+    "function getCategoryByKey(key) { return getCategories().find((category) => category.key === key) || null; }",
+    "function getAccounts() { return [...builtInAccounts, ...state.settings.customAccounts]; }",
+    "function getAccountById(id) { return getAccounts().find((account) => account.id === id) || null; }",
+    sliceBetween(appText, "function parseNaturalText(text) {", "function detectType(text) {"),
+    sliceBetween(appText, "function detectType(text) {", "function matchCategoryAcrossAll(text, normalizedText) {"),
+    sliceBetween(appText, "function matchCategoryAcrossAll(text, normalizedText) {", "function commitAndRender(entryInput) {"),
+  ].join("\n\n");
+  const { parseEntryText } = new Function(`${entrySnippet}\nreturn { parseEntryText };`)();
+
+  const ocrExpense = parseEntryText("微信支付\n付款成功\n午饭牛肉面\n￥20.00\n招商银行信用卡(1234)", { ocr: true });
+  assert.equal(ocrExpense.amount, 20, "OCR 付款截图应优先识别真实金额");
+  assert.equal(ocrExpense.type, "expense", "付款截图应识别为支出");
+  assert.equal(ocrExpense.categoryKey, "lunch", "午饭 OCR 文本应识别为午饭");
+  assert.equal(ocrExpense.accountId, "credit-default", "含信用卡信息的 OCR 文本应优先识别为信用卡账户");
+
+  const ocrIncome = parseEntryText("支付宝到账\n收款成功\n退款入账\n¥88.00", { ocr: true });
+  assert.equal(ocrIncome.amount, 88, "OCR 收款截图应识别金额");
+  assert.equal(ocrIncome.type, "income", "到账截图应识别为收入");
+  assert.equal(ocrIncome.accountId, "alipay", "到账截图应识别为支付宝账户");
+
+  const reminderSnippet = [
+    sliceBetween(appText, "const REMINDER_SLOT_PRESETS =", "if (!backupCore) {"),
+    sliceBetween(appText, "function createDefaultReminderSettings() {", "async function boot() {"),
+    "const state = { settings: { reminders: createDefaultReminderSettings() }, entries: [] };",
+    sliceBetween(appText, "function getReminderSlots() {", "function renderFilters() {"),
+  ].join("\n\n");
+  const reminderHarness = new Function(
+    `${reminderSnippet}\nreturn { createDefaultReminderSettings, getEntryReminderSignal, setEntries: (entries) => { state.entries = entries; }, getState: () => state };`
+  )();
+
+  reminderHarness.getState().settings.reminders = reminderHarness.createDefaultReminderSettings();
+  reminderHarness.setEntries([]);
+  assert.equal(
+    reminderHarness.getEntryReminderSignal(new Date("2026-04-15T14:00:00"))?.key,
+    "lunch",
+    "中午以后且当天无支出时应触发午间提醒"
+  );
+
+  reminderHarness.setEntries([
+    { type: "expense", createdAt: "2026-04-15T08:00:00" },
+    { type: "expense", createdAt: "2026-04-15T13:10:00" },
+    { type: "expense", createdAt: "2026-04-15T19:10:00" },
+  ]);
+  assert.equal(
+    reminderHarness.getEntryReminderSignal(new Date("2026-04-15T23:00:00")),
+    null,
+    "全天已有完整支出记录时，睡前不应继续提醒"
+  );
 
   console.log("Self-test passed: backup flow, cache policy, UI hooks, and parser smoke cases are valid.");
 }

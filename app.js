@@ -11,12 +11,18 @@ const CLIPBOARD_BACKUP_SOFT_LIMIT = 180 * 1024;
 const ENTRY_LOCAL_MIRROR_SOFT_LIMIT = 600 * 1024;
 const LOCAL_SNAPSHOT_LIMIT = 3;
 const AUTO_SNAPSHOT_COOLDOWN_MS = 15 * 60 * 1000;
+const ENTRY_REMINDER_COOLDOWN_MS = 90 * 60 * 1000;
 const LEDGER_DB_NAME = "pocket-ledger-db";
 const LEDGER_DB_VERSION = 1;
 const LEDGER_KV_STORE = "ledger-kv";
 const IDB_SETTINGS_KEY = "settings";
 const IDB_ENTRIES_KEY = "entries";
 const IDB_SNAPSHOTS_KEY = "snapshots";
+const REMINDER_SLOT_PRESETS = {
+  lunch: { label: "午间补账", defaultTime: "13:20" },
+  dinner: { label: "晚饭后", defaultTime: "19:40" },
+  night: { label: "睡前补账", defaultTime: "22:30" },
+};
 
 if (!backupCore) {
   throw new Error("PocketLedgerBackupCore 未加载");
@@ -121,6 +127,49 @@ const semanticCategoryRules = [
   { categoryKey: "taxi", keywords: ["打车", "滴滴", "专车", "网约车", "出租车"] },
   { categoryKey: "transport", keywords: ["地铁", "公交", "高铁", "火车", "巴士", "车票"] },
 ];
+const receiptStrongAmountKeywords = [
+  "实付",
+  "支付",
+  "付款",
+  "消费",
+  "金额",
+  "总计",
+  "合计",
+  "订单金额",
+  "支付金额",
+  "实际支付",
+  "收款",
+  "到账",
+  "入账",
+  "退款",
+  "转入",
+];
+const receiptWeakAmountKeywords = ["优惠后", "应付", "原价", "优惠", "立减"];
+const receiptNegativeAmountKeywords = ["尾号", "卡号", "订单号", "流水号", "单号", "券", "积分", "剩余", "余额"];
+const receiptMerchantLabelPatterns = [
+  /^(?:收款方|商户(?:名称)?|商家|付款给|交易对象|商品(?:说明)?)[：:\s]+(.+)$/i,
+  /^(?:向|给)(.+?)(?:付款|转账|收款)$/i,
+];
+const receiptMerchantIgnoreKeywords = [
+  "微信支付",
+  "支付宝",
+  "付款成功",
+  "支付成功",
+  "收款成功",
+  "交易成功",
+  "账单详情",
+  "账单明细",
+  "支付详情",
+  "交易详情",
+  "信用卡",
+  "银行卡",
+  "数字人民币",
+  "云闪付",
+  "立即付款",
+  "完成",
+];
+const receiptIncomeKeywords = ["收款成功", "到账", "收入", "转入", "入账", "退款成功", "微信零钱到账", "支付宝到账"];
+const receiptExpenseKeywords = ["付款成功", "支付成功", "消费", "支出", "付款给", "向商家付款", "买单"];
 
 const accountTypeLabelMap = {
   cash: "现金",
@@ -135,6 +184,11 @@ const dom = {
   appViewButtons: [...document.querySelectorAll("[data-app-view-target]")],
   appNavButtons: [...document.querySelectorAll(".app-nav-button")],
   installHint: document.querySelector("#installHint"),
+  reminderStrip: document.querySelector("#reminderStrip"),
+  reminderTitle: document.querySelector("#reminderTitle"),
+  reminderText: document.querySelector("#reminderText"),
+  reminderFocusButton: document.querySelector("#reminderFocusButton"),
+  dismissReminderButton: document.querySelector("#dismissReminderButton"),
   monthExpense: document.querySelector("#monthExpense"),
   monthIncome: document.querySelector("#monthIncome"),
   monthBudgetLeft: document.querySelector("#monthBudgetLeft"),
@@ -196,6 +250,16 @@ const dom = {
   backupStatus: document.querySelector("#backupStatus"),
   backupHealth: document.querySelector("#backupHealth"),
   backupReminderSelect: document.querySelector("#backupReminderSelect"),
+  reminderControls: [...document.querySelectorAll("[data-reminder-key]")],
+  reminderStatus: document.querySelector("#reminderStatus"),
+  copyReminderGuide: document.querySelector("#copyReminderGuide"),
+  downloadReminderGuide: document.querySelector("#downloadReminderGuide"),
+  openReminderShortcutCreate: document.querySelector("#openReminderShortcutCreate"),
+  ocrShortcutName: document.querySelector("#ocrShortcutName"),
+  copyOcrAutoLink: document.querySelector("#copyOcrAutoLink"),
+  copyOcrPreviewLink: document.querySelector("#copyOcrPreviewLink"),
+  downloadOcrGuide: document.querySelector("#downloadOcrGuide"),
+  ocrStatus: document.querySelector("#ocrStatus"),
   templateList: document.querySelector("#templateList"),
   jsonFileInput: document.querySelector("#jsonFileInput"),
   shortcutAmount: document.querySelector("#shortcutAmount"),
@@ -270,6 +334,19 @@ function createDefaultBackupMeta() {
   };
 }
 
+function createDefaultReminderSettings() {
+  return {
+    lunchEnabled: true,
+    lunchTime: REMINDER_SLOT_PRESETS.lunch.defaultTime,
+    dinnerEnabled: true,
+    dinnerTime: REMINDER_SLOT_PRESETS.dinner.defaultTime,
+    nightEnabled: true,
+    nightTime: REMINDER_SLOT_PRESETS.night.defaultTime,
+    lastDismissedOn: "",
+    lastToastKey: "",
+  };
+}
+
 function normalizeBackupMeta(meta) {
   return {
     baselineAt: String(meta?.baselineAt || ""),
@@ -280,6 +357,23 @@ function normalizeBackupMeta(meta) {
     lastLocalSnapshotAt: String(meta?.lastLocalSnapshotAt || ""),
     localSnapshotCount: Math.max(0, Number(meta?.localSnapshotCount) || 0),
   };
+}
+
+function normalizeReminderSettings(reminders) {
+  return {
+    lunchEnabled: reminders?.lunchEnabled !== false,
+    lunchTime: normalizeReminderTime(reminders?.lunchTime, REMINDER_SLOT_PRESETS.lunch.defaultTime),
+    dinnerEnabled: reminders?.dinnerEnabled !== false,
+    dinnerTime: normalizeReminderTime(reminders?.dinnerTime, REMINDER_SLOT_PRESETS.dinner.defaultTime),
+    nightEnabled: reminders?.nightEnabled !== false,
+    nightTime: normalizeReminderTime(reminders?.nightTime, REMINDER_SLOT_PRESETS.night.defaultTime),
+    lastDismissedOn: String(reminders?.lastDismissedOn || ""),
+    lastToastKey: String(reminders?.lastToastKey || ""),
+  };
+}
+
+function normalizeReminderTime(value, fallback) {
+  return /^\d{2}:\d{2}$/.test(String(value || "")) ? String(value) : fallback;
 }
 
 async function boot() {
@@ -295,6 +389,7 @@ async function boot() {
   updateInstallHint();
   registerServiceWorker();
   maybeShowBackupReminder({ delay: 900 });
+  maybeShowEntryReminder({ delay: 1200 });
 }
 
 function createDefaultSettings() {
@@ -303,6 +398,7 @@ function createDefaultSettings() {
     monthlyBudget: 0,
     backupReminderDays: 7,
     backupMeta: createDefaultBackupMeta(),
+    reminders: createDefaultReminderSettings(),
     customCategories: [],
     customAccounts: [],
     templates: [],
@@ -395,6 +491,7 @@ function normalizeSettings(settings) {
     monthlyBudget: Number(settings.monthlyBudget) || 0,
     backupReminderDays: BACKUP_REMINDER_OPTIONS.includes(Number(settings.backupReminderDays)) ? Number(settings.backupReminderDays) : 7,
     backupMeta: normalizeBackupMeta(settings.backupMeta),
+    reminders: normalizeReminderSettings(settings.reminders),
     customCategories: Array.isArray(settings.customCategories) ? settings.customCategories.filter(Boolean) : [],
     customAccounts: Array.isArray(settings.customAccounts) ? settings.customAccounts.filter(Boolean) : [],
     templates: Array.isArray(settings.templates)
@@ -550,6 +647,8 @@ function bindEvents() {
     dom.smartTextInput.value = "";
     renderParserPreview();
   });
+  dom.reminderFocusButton.addEventListener("click", focusSmartComposer);
+  dom.dismissReminderButton.addEventListener("click", dismissReminderForToday);
 
   dom.smartExamples.addEventListener("click", (event) => {
     const button = event.target.closest("[data-example]");
@@ -659,6 +758,9 @@ function bindEvents() {
       saveBudget();
     }
   });
+  dom.reminderControls.forEach((control) => {
+    control.addEventListener("change", handleReminderConfigChange);
+  });
 
   dom.categoryForm.addEventListener("submit", handleCategoryCreate);
   dom.accountForm.addEventListener("submit", handleAccountCreate);
@@ -708,6 +810,12 @@ function bindEvents() {
   dom.openShortcutCreate.addEventListener("click", openShortcutCreatePage);
   dom.copyRunShortcutUrl.addEventListener("click", copyRunShortcutUrl);
   dom.downloadShortcutGuide.addEventListener("click", downloadShortcutGuide);
+  dom.copyReminderGuide.addEventListener("click", copyReminderGuide);
+  dom.downloadReminderGuide.addEventListener("click", downloadReminderGuide);
+  dom.openReminderShortcutCreate.addEventListener("click", openShortcutCreatePage);
+  dom.copyOcrAutoLink.addEventListener("click", copyOcrAutoLink);
+  dom.copyOcrPreviewLink.addEventListener("click", copyOcrPreviewLink);
+  dom.downloadOcrGuide.addEventListener("click", downloadOcrGuide);
   dom.exportCsv.addEventListener("click", exportCsv);
   dom.seedDemo.addEventListener("click", seedDemoEntries);
 
@@ -716,7 +824,10 @@ function bindEvents() {
   dom.dismissUndoButton.addEventListener("click", clearUndoDeletion);
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
+      renderReminderStrip();
+      renderAutomationPanel();
       maybeShowBackupReminder({ delay: 400 });
+      maybeShowEntryReminder({ delay: 700 });
     }
   });
 }
@@ -730,6 +841,7 @@ function renderAll() {
   ensureSelectionIntegrity();
   renderAppViews();
   renderSummary();
+  renderReminderStrip();
   renderBudget();
   renderBackupPanel();
   renderFormControls();
@@ -738,6 +850,7 @@ function renderAll() {
   renderTemplateOptions();
   renderTemplateList();
   renderShortcuts();
+  renderAutomationPanel();
   renderFilters();
   renderVisualBoards();
   renderUndoBanner();
@@ -786,6 +899,20 @@ function renderSummary() {
   dom.yearExpense.textContent = currency.format(yearExpense);
   dom.yearIncome.textContent = currency.format(yearIncome);
   dom.yearNet.textContent = currency.format(yearIncome - yearExpense);
+}
+
+function renderReminderStrip() {
+  const signal = getEntryReminderSignal();
+  if (!signal) {
+    dom.reminderStrip.hidden = true;
+    dom.reminderStrip.className = "reminder-strip";
+    return;
+  }
+
+  dom.reminderStrip.hidden = false;
+  dom.reminderStrip.className = `reminder-strip reminder-strip--${signal.level}`;
+  dom.reminderTitle.textContent = signal.title;
+  dom.reminderText.textContent = signal.summary;
 }
 
 function renderBudget() {
@@ -924,9 +1051,9 @@ function renderParserPreview() {
     return;
   }
 
-  const parsed = parseNaturalText(text);
+  const parsed = parseEntryText(text);
   if (!parsed.amount) {
-    dom.parserPreview.innerHTML = `<strong>暂时还没认出金额。</strong> 试试类似“咖啡18 支付宝”这种写法。`;
+    dom.parserPreview.innerHTML = `<strong>暂时还没认出金额。</strong> 试试类似“咖啡18 支付宝”，或直接粘贴支付截图 OCR 文字。`;
     return;
   }
 
@@ -1148,6 +1275,132 @@ function renderShortcuts() {
   if (!dom.shortcutName.value.trim()) {
     dom.shortcutName.value = "Pocket Ledger 一句话记账";
   }
+}
+
+function renderAutomationPanel() {
+  const reminders = normalizeReminderSettings(state.settings.reminders);
+  const enabledSlots = getReminderSlots().filter((slot) => slot.enabled);
+  const signal = getEntryReminderSignal();
+
+  dom.reminderControls.forEach((control) => {
+    const slotKey = control.dataset.reminderKey;
+    const field = control.dataset.reminderField;
+    if (!slotKey || !field) {
+      return;
+    }
+
+    const stateKey = `${slotKey}${field === "enabled" ? "Enabled" : "Time"}`;
+    if (control.type === "checkbox") {
+      control.checked = Boolean(reminders[stateKey]);
+      return;
+    }
+    control.value = reminders[stateKey];
+  });
+
+  if (!dom.reminderStatus.dataset.lockedCopy) {
+    dom.reminderStatus.textContent = enabledSlots.length
+      ? `当前已开启 ${enabledSlots.length} 个时段：${enabledSlots.map((slot) => `${slot.label} ${slot.time}`).join(" · ")}。页面内会在打开时提醒；真正到点弹出建议按下面模板建 iPhone 快捷指令个人自动化。`
+      : "提醒时段已全部关闭。你仍然可以只保留截图 OCR 快捷记账。";
+  }
+
+  if (!dom.ocrShortcutName.value.trim()) {
+    dom.ocrShortcutName.value = "Pocket Ledger 截图记账";
+  }
+
+  if (!dom.ocrStatus.dataset.lockedCopy) {
+    dom.ocrStatus.textContent = signal
+      ? `${signal.title}。如果你刚付完款，直接截图分享给 OCR 快捷指令，它会自动把金额、商户和支付账户带进来。`
+      : "推荐流程：付款截图 -> 分享到快捷指令 -> 提取图片文字 -> 打开页面自动入账。页面会优先识别金额、商户和支付账户。";
+  }
+}
+
+function getReminderSlots() {
+  const reminders = normalizeReminderSettings(state.settings.reminders);
+  return Object.entries(REMINDER_SLOT_PRESETS).map(([key, preset]) => ({
+    key,
+    label: preset.label,
+    time: reminders[`${key}Time`],
+    enabled: Boolean(reminders[`${key}Enabled`]),
+  }));
+}
+
+function getEntryReminderSignal(now = new Date()) {
+  const reminders = normalizeReminderSettings(state.settings.reminders);
+  if (reminders.lastDismissedOn === getDayKey(now)) {
+    return null;
+  }
+
+  const dueSlots = getReminderSlots()
+    .filter((slot) => slot.enabled && getMinutesSinceMidnight(now) >= parseTimeToMinutes(slot.time))
+    .sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+
+  if (!dueSlots.length) {
+    return null;
+  }
+
+  const todayEntries = getEntriesForDay(now);
+  const todayExpenses = todayEntries.filter((entry) => entry.type === "expense");
+  const latestDue = dueSlots[dueSlots.length - 1];
+  if (!todayExpenses.length) {
+    return {
+      key: latestDue.key,
+      level: "warning",
+      title: "今天还没记支出",
+      summary: `${latestDue.label}到了，顺手补一笔就行。也可以直接用截图 OCR 快捷指令。`,
+      toast: `${latestDue.label}到了，今天还没记支出`,
+    };
+  }
+
+  if (latestDue.key === "dinner" && !hasExpenseSinceHour(todayExpenses, 12)) {
+    return {
+      key: latestDue.key,
+      level: "warning",
+      title: "下午到晚饭这段还没补",
+      summary: "如果刚才用的是微信、支付宝或信用卡，直接写一句话或走截图 OCR 都可以。",
+      toast: "晚饭后提醒：下午这段消费可能还没补",
+    };
+  }
+
+  if (latestDue.key === "night" && (!hasExpenseSinceHour(todayExpenses, 18) || todayExpenses.length < 2)) {
+    return {
+      key: latestDue.key,
+      level: "soft",
+      title: "睡前扫一眼今天账单",
+      summary: "尤其看下微信、支付宝和信用卡，有漏单就现在补掉，明天更省事。",
+      toast: "睡前补账提醒：今天可能还有漏记",
+    };
+  }
+
+  return null;
+}
+
+function getEntriesForDay(dateLike) {
+  const dayKey = getDayKey(dateLike);
+  return state.entries
+    .filter((entry) => getDayKey(entry.createdAt) === dayKey)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+}
+
+function getDayKey(dateLike) {
+  const date = new Date(dateLike);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getMinutesSinceMidnight(dateLike) {
+  const date = new Date(dateLike);
+  return date.getHours() * 60 + date.getMinutes();
+}
+
+function parseTimeToMinutes(timeString) {
+  const [hours, minutes] = String(timeString || "00:00").split(":").map(Number);
+  return (Number(hours) || 0) * 60 + (Number(minutes) || 0);
+}
+
+function hasExpenseSinceHour(entries, hour) {
+  return entries.some((entry) => new Date(entry.createdAt).getHours() >= hour);
 }
 
 function renderFilters() {
@@ -1452,15 +1705,37 @@ function handleSmartCommit() {
     return;
   }
 
-  const parsed = parseNaturalText(text);
+  const parsed = parseEntryText(text);
   if (!parsed.amount) {
-    showToast("还没识别出金额，试试“咖啡18 支付宝”");
+    showToast("还没识别出金额，试试“咖啡18 支付宝”或直接粘贴截图 OCR 文字");
     return;
   }
 
   commitAndRender({ ...parsed, source: "smart" });
   dom.smartTextInput.value = "";
   renderParserPreview();
+}
+
+function prefillEntryDraft(entryInput, originalText = "") {
+  cancelEditing();
+  state.settings.activeType = entryInput.type === "income" ? "income" : "expense";
+  state.settings.activeCategoryKey = entryInput.categoryKey || state.settings.activeCategoryKey;
+  state.settings.activeAccountId = entryInput.accountId || state.settings.activeAccountId;
+  persistSettings();
+
+  dom.smartTextInput.value = originalText || entryInput.note || "";
+  dom.amountInput.value = entryInput.amount ? String(entryInput.amount) : "";
+  dom.entryDateInput.value = formatDateTimeLocal(entryInput.createdAt || new Date());
+  dom.noteInput.value = entryInput.note || "";
+  dom.tagsInput.value = (entryInput.tags || []).map((tag) => `#${tag}`).join(" ");
+  renderParserPreview();
+  renderFormControls();
+  renderEntryMode();
+  setActiveView("ledger", { scroll: false });
+  window.setTimeout(() => {
+    dom.entryForm.scrollIntoView({ behavior: "smooth", block: "start" });
+    dom.amountInput.focus();
+  }, 120);
 }
 
 function updateEntry(entryId, entryInput) {
@@ -1521,6 +1796,47 @@ function undoDelete() {
 function clearUndoDeletion() {
   state.undoDeletion = null;
   renderUndoBanner();
+}
+
+function handleReminderConfigChange(event) {
+  const control = event.currentTarget;
+  const slotKey = control.dataset.reminderKey;
+  const field = control.dataset.reminderField;
+  if (!slotKey || !field) {
+    return;
+  }
+
+  const current = normalizeReminderSettings(state.settings.reminders);
+  const next = { ...current };
+  const stateKey = `${slotKey}${field === "enabled" ? "Enabled" : "Time"}`;
+  next[stateKey] =
+    field === "enabled" ? Boolean(control.checked) : normalizeReminderTime(control.value, REMINDER_SLOT_PRESETS[slotKey]?.defaultTime || "21:00");
+  next.lastDismissedOn = "";
+  state.settings.reminders = next;
+  persistSettings();
+  renderReminderStrip();
+  renderAutomationPanel();
+  showToast(`${REMINDER_SLOT_PRESETS[slotKey]?.label || "提醒"}已更新`);
+}
+
+function focusSmartComposer() {
+  setActiveView("home");
+  window.setTimeout(() => {
+    dom.smartTextInput.focus();
+    dom.smartTextInput.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, 120);
+}
+
+function dismissReminderForToday() {
+  const reminders = normalizeReminderSettings(state.settings.reminders);
+  state.settings.reminders = {
+    ...reminders,
+    lastDismissedOn: getDayKey(new Date()),
+  };
+  persistSettings();
+  renderReminderStrip();
+  renderAutomationPanel();
+  showToast("今天先不提醒了");
 }
 
 function handleBackupReminderChange() {
@@ -1618,6 +1934,32 @@ function getBackupReminderMessage() {
   }
 
   return "";
+}
+
+function maybeShowEntryReminder(options = {}) {
+  const { force = false, delay = 0 } = options;
+  const signal = getEntryReminderSignal();
+  if (!signal) {
+    return;
+  }
+
+  const reminders = normalizeReminderSettings(state.settings.reminders);
+  const toastKey = `${getDayKey(new Date())}-${signal.key}`;
+  const lastToastAt = Date.parse(reminders.lastToastKey.split("|")[1] || "");
+  if (!force && reminders.lastToastKey.startsWith(`${toastKey}|`) && Number.isFinite(lastToastAt) && Date.now() - lastToastAt < ENTRY_REMINDER_COOLDOWN_MS) {
+    return;
+  }
+
+  state.settings.reminders = {
+    ...reminders,
+    lastToastKey: `${toastKey}|${new Date().toISOString()}`,
+  };
+  persistSettings();
+
+  window.clearTimeout(maybeShowEntryReminder.timer);
+  maybeShowEntryReminder.timer = window.setTimeout(() => {
+    showToast(signal.toast);
+  }, delay);
 }
 
 function saveBudget() {
@@ -1859,6 +2201,161 @@ function parseNaturalText(text) {
   };
 }
 
+function parseEntryText(text, options = {}) {
+  return shouldUseReceiptParser(text, options) ? parseReceiptText(text) : parseNaturalText(text);
+}
+
+function shouldUseReceiptParser(text, options = {}) {
+  if (options.ocr) {
+    return true;
+  }
+
+  const rawText = String(text || "");
+  return /[\n\r]/.test(rawText) && /(支付|付款|收款方|商户|订单|实付|总计|消费|到账|入账)/.test(rawText);
+}
+
+function parseReceiptText(text) {
+  const cleanText = normalizeReceiptText(text);
+  const tags = extractTagsFromText(cleanText);
+  const amount = extractReceiptAmount(cleanText) || extractAmount(cleanText);
+  const merchant = extractReceiptMerchant(cleanText);
+  const semanticText = [merchant, cleanText].filter(Boolean).join(" ");
+  const normalizedText = normalizeText(semanticText);
+  const type = detectReceiptType(cleanText) || detectType(semanticText);
+  const matchedCategory = matchCategoryAcrossAll(semanticText, normalizedText);
+  const category =
+    matchedCategory?.type === type
+      ? matchedCategory
+      : matchCategoryWithinType(semanticText, normalizedText, type) || inferCategoryByMeaning(semanticText, normalizedText, type);
+  const fallbackCategory = getCategories(type).find((item) => item.key === (type === "income" ? "transfer" : "other-expense"));
+  const account = inferReceiptAccount(semanticText, normalizedText) || getAccountById(state.settings.activeAccountId) || getAccounts()[0];
+
+  return {
+    amount,
+    type,
+    categoryKey: category?.key || fallbackCategory?.key || getCategories(type)[0]?.key,
+    accountId: account?.id || "cash",
+    note: merchant || inferReceiptNote(cleanText, type, category?.label),
+    tags,
+  };
+}
+
+function normalizeReceiptText(text) {
+  return String(text || "")
+    .replace(/\r/g, "\n")
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+function detectReceiptType(text) {
+  if (receiptIncomeKeywords.some((keyword) => text.includes(keyword)) && !receiptExpenseKeywords.some((keyword) => text.includes(keyword))) {
+    return "income";
+  }
+
+  if (receiptExpenseKeywords.some((keyword) => text.includes(keyword))) {
+    return "expense";
+  }
+
+  return inferSemanticType(text);
+}
+
+function extractReceiptAmount(text) {
+  const candidates = [...text.matchAll(/\d+(?:\.\d{1,2})?/g)]
+    .map((match) => ({
+      value: Number(match[0]),
+      raw: match[0],
+      index: match.index || 0,
+    }))
+    .filter((candidate) => !looksLikeDateToken(text, candidate));
+
+  if (!candidates.length) {
+    return null;
+  }
+
+  candidates.forEach((candidate) => {
+    const around = text.slice(Math.max(0, candidate.index - 10), candidate.index + candidate.raw.length + 10);
+    let score = 100;
+    if (/[¥￥元块]/.test(around)) {
+      score += 8000;
+    }
+    if (receiptStrongAmountKeywords.some((keyword) => around.includes(keyword))) {
+      score += 9000;
+    }
+    if (receiptWeakAmountKeywords.some((keyword) => around.includes(keyword))) {
+      score += 2500;
+    }
+    if (receiptNegativeAmountKeywords.some((keyword) => around.includes(keyword))) {
+      score -= 14000;
+    }
+    if (candidate.value >= 1000 && !candidate.raw.includes(".") && !/[¥￥]/.test(around)) {
+      score -= 7000;
+    }
+    if (/^\d{4,}$/.test(candidate.raw)) {
+      score -= 2000;
+    }
+    candidate.score = score + Math.min(candidate.value, 999) / 100;
+  });
+
+  return candidates
+    .filter((candidate) => candidate.score > 0)
+    .sort((a, b) => b.score - a.score)[0]?.value || null;
+}
+
+function extractReceiptMerchant(text) {
+  const lines = normalizeReceiptText(text).split("\n");
+  for (const line of lines) {
+    for (const pattern of receiptMerchantLabelPatterns) {
+      const match = line.match(pattern);
+      if (match?.[1]) {
+        const cleaned = cleanReceiptMerchantLine(match[1]);
+        if (cleaned) {
+          return cleaned;
+        }
+      }
+    }
+  }
+
+  return (
+    lines
+      .map(cleanReceiptMerchantLine)
+      .find((line) => isLikelyMerchantLine(line)) || ""
+  );
+}
+
+function cleanReceiptMerchantLine(line) {
+  return String(line || "")
+    .replace(/[¥￥]\s*\d+(?:\.\d{1,2})?.*$/g, "")
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/[（][^）]*[）]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isLikelyMerchantLine(line) {
+  if (!line || line.length > 22) {
+    return false;
+  }
+
+  if (!/[\u4e00-\u9fa5A-Za-z]/.test(line)) {
+    return false;
+  }
+
+  if (/^\d+(?:\.\d+)?$/.test(line) || /\d{4,}/.test(line)) {
+    return false;
+  }
+
+  return !receiptMerchantIgnoreKeywords.some((keyword) => line.includes(keyword));
+}
+
+function inferReceiptNote(text, type, categoryLabel) {
+  if (categoryLabel && categoryLabel !== "其他支出" && categoryLabel !== "转入") {
+    return categoryLabel;
+  }
+  return type === "income" ? "截图收入" : "截图消费";
+}
+
 function detectType(text) {
   const semanticType = inferSemanticType(text);
   if (semanticType) {
@@ -1949,6 +2446,31 @@ function inferAccountByMeaning(text, normalizedText) {
   }
 
   return null;
+}
+
+function inferReceiptAccount(text, normalizedText) {
+  const matchedCardAccount = chooseBestMatch(
+    getAccounts().filter((account) => account.type === "credit" || account.type === "debit"),
+    (account) => accountMatchScore(account, text, normalizedText)
+  );
+  if (matchedCardAccount) {
+    return matchedCardAccount;
+  }
+
+  const semanticCardRule = chooseBestMatch(
+    accountSemanticRules
+      .filter((rule) => ["credit-default", "debit-default"].includes(rule.accountId))
+      .map((rule) => ({
+        ...rule,
+        account: getAccountById(rule.accountId),
+      })),
+    (rule) => (rule.account ? keywordMatchScore(rule.keywords, text, normalizedText) : 0)
+  );
+  if (semanticCardRule?.account) {
+    return chooseAccountByTypePreference(semanticCardRule.account.type) || semanticCardRule.account;
+  }
+
+  return matchAccount(text, normalizedText) || inferAccountByMeaning(text, normalizedText);
 }
 
 function chooseAccountByTypePreference(type) {
@@ -2788,10 +3310,68 @@ function buildNaturalTextShortcutTarget() {
   return `${window.location.origin}${window.location.pathname}?autocommit=1&text={URL编码后的一句话}&source=shortcut`;
 }
 
+function getOcrShortcutName() {
+  return dom.ocrShortcutName.value.trim() || "Pocket Ledger 截图记账";
+}
+
+function buildOcrAutoTarget() {
+  return `${window.location.origin}${window.location.pathname}?autocommit=1&ocr=1&text={URL编码后的OCR全文}&source=ocr`;
+}
+
+function buildOcrPreviewTarget() {
+  return `${window.location.origin}${window.location.pathname}?prefill=1&ocr=1&text={URL编码后的OCR全文}&source=ocr`;
+}
+
 function buildRunShortcutUrl() {
   const name = encodeURIComponent(getShortcutName());
   const sampleText = encodeURIComponent(dom.smartTextInput.value.trim() || "瑞幸咖啡18 支付宝");
   return `shortcuts://run-shortcut?name=${name}&input=text&text=${sampleText}`;
+}
+
+function buildReminderGuideText() {
+  const enabledSlots = getReminderSlots().filter((slot) => slot.enabled);
+  const targetUrl = `${window.location.origin}${window.location.pathname}`;
+  return [
+    "建议路线：快捷指令 -> 自动化 -> 个人自动化 -> 时间",
+    "",
+    enabledSlots.length
+      ? `当前启用时段：${enabledSlots.map((slot) => `${slot.label} ${slot.time}`).join(" / ")}`
+      : "当前没有启用任何页面内提醒时段，可先在设置里打开。",
+    "",
+    "每个时段都建一个自动化，动作建议：",
+    "1. 时间：选上面的对应时刻，重复每天。",
+    "2. 动作 A：显示通知，文案写“到点了，补一笔 Pocket Ledger”。",
+    `3. 动作 B：打开 URL -> ${targetUrl}`,
+    "4. 如果你只想提醒不自动打开，可以只保留通知动作。",
+    "",
+    "说明：",
+    "- 纯 PWA 不能在 iPhone 上自己后台定时弹提醒，所以这一步需要借助快捷指令个人自动化。",
+    "- 页面内提醒仍然保留；你打开 App 时也会按时段提示。",
+  ].join("\n");
+}
+
+function buildOcrGuideText() {
+  return [
+    `快捷指令名：${getOcrShortcutName()}`,
+    "",
+    "建议把这个快捷指令设成“显示在共享表单”，这样截图后直接分享到它。",
+    "",
+    "动作顺序：",
+    "1. 获取“快捷指令输入”里的图片。",
+    "2. 如果有多张图，只取第一张。",
+    "3. 对图片执行“从图像中提取文本”。",
+    "4. 如果提取结果为空：显示通知“这张截图没识别到文字”。",
+    "5. 对提取到的文本做“URL 编码”。",
+    "6. 用“文本”拼出下面这个自动入账地址：",
+    buildOcrAutoTarget(),
+    "",
+    "如果你想先检查再保存，把第 6 步改成这个预览地址：",
+    buildOcrPreviewTarget(),
+    "",
+    "补充：",
+    "- 付款截图里如果同时有订单号、卡尾号和金额，页面会优先抓真正的支付金额。",
+    "- 商户、微信/支付宝/信用卡等账户信息也会一起尝试识别。",
+  ].join("\n");
 }
 
 async function copyShortcutUrl() {
@@ -2826,6 +3406,48 @@ function openShortcutCreatePage() {
 
 async function copyRunShortcutUrl() {
   await copyText(buildRunShortcutUrl(), "运行快捷指令的 URL 已复制");
+}
+
+async function copyReminderGuide() {
+  if (!window.location.origin.startsWith("http")) {
+    showToast("请先把页面跑在 http 或 https 地址上");
+    return;
+  }
+  await copyText(buildReminderGuideText(), "提醒自动化模板已复制", dom.reminderStatus);
+}
+
+function downloadReminderGuide() {
+  if (!window.location.origin.startsWith("http")) {
+    showToast("请先把页面跑在 http 或 https 地址上");
+    return;
+  }
+  downloadTextFile(buildReminderGuideText(), "pocket-ledger-reminder-guide.txt");
+  showToast("提醒自动化模板已下载");
+}
+
+async function copyOcrAutoLink() {
+  if (!window.location.origin.startsWith("http")) {
+    showToast("请先把页面跑在 http 或 https 地址上");
+    return;
+  }
+  await copyText(buildOcrGuideText(), "截图 OCR 模板已复制", dom.ocrStatus);
+}
+
+async function copyOcrPreviewLink() {
+  if (!window.location.origin.startsWith("http")) {
+    showToast("请先把页面跑在 http 或 https 地址上");
+    return;
+  }
+  await copyText(buildOcrPreviewTarget(), "OCR 预览地址模板已复制", dom.ocrStatus);
+}
+
+function downloadOcrGuide() {
+  if (!window.location.origin.startsWith("http")) {
+    showToast("请先把页面跑在 http 或 https 地址上");
+    return;
+  }
+  downloadTextFile(buildOcrGuideText(), "pocket-ledger-ocr-guide.txt");
+  showToast("截图 OCR 模板已下载");
 }
 
 function downloadShortcutGuide() {
@@ -2876,6 +3498,12 @@ async function copyText(text, successMessage, statusTarget = dom.shortcutStatus)
     }
     if (statusTarget) {
       statusTarget.textContent = text;
+      statusTarget.dataset.lockedCopy = "1";
+      window.clearTimeout(statusTarget.__copyTimer);
+      statusTarget.__copyTimer = window.setTimeout(() => {
+        delete statusTarget.dataset.lockedCopy;
+        renderAutomationPanel();
+      }, 10_000);
     }
     showToast(successMessage);
     return true;
@@ -2889,17 +3517,36 @@ async function copyText(text, successMessage, statusTarget = dom.shortcutStatus)
   }
 }
 
+function downloadTextFile(text, filename) {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 function applyLaunchQuery() {
   const params = new URLSearchParams(window.location.search);
-  if (params.get("autocommit") !== "1") {
+  const shouldAutocommit = params.get("autocommit") === "1";
+  const shouldPrefill = params.get("prefill") === "1";
+  if (!shouldAutocommit && !shouldPrefill) {
     return;
   }
 
   const freeText = params.get("text");
+  const fromReceipt = params.get("ocr") === "1";
+  const source = params.get("source") || (fromReceipt ? "ocr" : "shortcut");
   if (freeText) {
-    const parsed = parseNaturalText(freeText);
+    const parsed = parseEntryText(freeText, { ocr: fromReceipt });
     if (parsed.amount) {
-      commitAndRender({ ...parsed, source: params.get("source") || "shortcut" });
+      if (shouldAutocommit) {
+        commitAndRender({ ...parsed, source });
+      } else {
+        prefillEntryDraft(parsed, freeText);
+        showToast(fromReceipt ? "截图识别结果已带入，确认一下再保存" : "快捷内容已带入表单");
+      }
       window.history.replaceState({}, document.title, window.location.pathname);
       return;
     }
@@ -2916,14 +3563,20 @@ function applyLaunchQuery() {
     return;
   }
 
-  commitAndRender({
+  const payload = {
     amount,
     categoryKey,
     type,
     accountId: getAccountById(accountId) ? accountId : state.settings.activeAccountId,
     note,
-    source: params.get("source") || "shortcut",
-  });
+    source,
+  };
+  if (shouldAutocommit) {
+    commitAndRender(payload);
+  } else {
+    prefillEntryDraft(payload, note);
+    showToast("快捷内容已带入表单");
+  }
   window.history.replaceState({}, document.title, window.location.pathname);
 }
 

@@ -15,6 +15,8 @@
 - 压缩备份下载 / 系统分享 / 导入文件 / 自动本机快照
 - `IndexedDB` 主存储，兼容更大的本地账本
 - 备份提醒：按天提醒、显示距离最近一份备份多久、备份后又改了多少次
+- 记账提醒：午间 / 晚饭后 / 睡前轻提醒，支持配合 iPhone 快捷指令个人自动化
+- 截图 OCR 记账：可把支付截图交给快捷指令提取文字，再自动写入或先预览后写入
 - 能被 iPhone 快捷指令用 URL 参数直接调用
 
 ## 本地运行
@@ -86,6 +88,8 @@ git push
 - 压缩备份链路：支持下载压缩备份、系统分享压缩备份、导入压缩文本文件，以及恢复最近一次本机快照。
 - 大账本存储：主数据优先落在 `IndexedDB`，不再只依赖 `localStorage` 的容量。
 - 备份提醒：支持按 3 / 7 / 14 / 30 天提醒，并提示备份后又发生了多少次新增或修改。
+- 记账提醒：支持午间、晚饭后、睡前三个时段；页面内打开即提示，也能导出快捷指令自动化模板。
+- 截图 OCR：支持把支付截图的 OCR 文本直接带进页面，优先识别支付金额、商户和微信/支付宝/信用卡等账户。
 - 月度结转：可根据上个月净额生成“本月结转”记录。
 
 ## iPhone 安装
@@ -118,7 +122,27 @@ https://your-domain.example/?autocommit=1&type=expense&amount=18&category=coffee
 https://your-domain.example/?autocommit=1&text=%E7%91%9E%E5%B9%B8%E5%92%96%E5%95%A118%20%E6%94%AF%E4%BB%98%E5%AE%9D&source=shortcut
 ```
 
+截图 OCR 自动入账链接示例：
+
+```text
+https://your-domain.example/?autocommit=1&ocr=1&text=%E6%94%AF%E4%BB%98%E6%88%AA%E5%9B%BE%E6%8F%90%E5%8F%96%E5%87%BA%E7%9A%84%E6%96%87%E5%AD%97&source=ocr
+```
+
+截图 OCR 预览链接示例：
+
+```text
+https://your-domain.example/?prefill=1&ocr=1&text=%E6%94%AF%E4%BB%98%E6%88%AA%E5%9B%BE%E6%8F%90%E5%8F%96%E5%87%BA%E7%9A%84%E6%96%87%E5%AD%97&source=ocr
+```
+
 第二种方式更适合语音和智能触发。
+
+截图 OCR 的推荐路线：
+
+1. iPhone 截图后，在共享表单里交给快捷指令。
+2. 快捷指令执行“从图像中提取文本”。
+3. 对文本做 `URL 编码`。
+4. 打开上面的 `ocr=1` 链接。
+5. 想完全自动就用 `autocommit=1`；想先检查就用 `prefill=1`。
 
 运行已存在快捷指令的 URL 示例：
 
