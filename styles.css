@@ -743,6 +743,8 @@ textarea {
   border: 1px solid rgba(23, 27, 25, 0.04);
   line-height: 1.5;
   font-size: 0.76rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .entry-mode {

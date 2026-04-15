@@ -1275,6 +1275,15 @@ function renderShortcuts() {
   if (!dom.shortcutName.value.trim()) {
     dom.shortcutName.value = "Pocket Ledger 一句话记账";
   }
+  renderShortcutStatus();
+}
+
+function renderShortcutStatus() {
+  if (dom.shortcutStatus.dataset.lockedCopy) {
+    return;
+  }
+  dom.shortcutStatus.textContent =
+    "快捷指令除了传金额和分类，也可以直接传 `text=瑞幸咖啡18 支付宝` 这类中文文本，让页面自动识别并入账。";
 }
 
 function renderAutomationPanel() {
@@ -3379,7 +3388,7 @@ async function copyShortcutUrl() {
     showToast("请先把页面跑在 http 或 https 地址上");
     return;
   }
-  await copyText(buildShortcutUrl(), "结构化自动落账链接已复制");
+  await copyText(buildShortcutUrl(), "结构化自动落账链接已复制", dom.shortcutStatus, "已复制结构化链接，回到快捷指令里直接粘贴即可。");
 }
 
 async function copyVoiceShortcutTemplate() {
@@ -3397,7 +3406,7 @@ async function copyVoiceShortcutTemplate() {
     "建好以后，这个运行 URL 可以直接触发它：",
     buildRunShortcutUrl(),
   ].join("\n");
-  await copyText(template, "一句话快捷指令模板已复制");
+  await copyText(template, "一句话快捷指令模板已复制", dom.shortcutStatus, "已复制一句话模板，去快捷指令按空白处粘贴即可。");
 }
 
 function openShortcutCreatePage() {
@@ -3405,7 +3414,7 @@ function openShortcutCreatePage() {
 }
 
 async function copyRunShortcutUrl() {
-  await copyText(buildRunShortcutUrl(), "运行快捷指令的 URL 已复制");
+  await copyText(buildRunShortcutUrl(), "运行快捷指令的 URL 已复制", dom.shortcutStatus, "已复制运行 URL，可用来直接触发已创建的快捷指令。");
 }
 
 async function copyReminderGuide() {
@@ -3413,7 +3422,7 @@ async function copyReminderGuide() {
     showToast("请先把页面跑在 http 或 https 地址上");
     return;
   }
-  await copyText(buildReminderGuideText(), "提醒自动化模板已复制", dom.reminderStatus);
+  await copyText(buildReminderGuideText(), "提醒自动化模板已复制", dom.reminderStatus, "已复制提醒自动化模板，去快捷指令新建个人自动化后直接粘贴。");
 }
 
 function downloadReminderGuide() {
@@ -3430,7 +3439,7 @@ async function copyOcrAutoLink() {
     showToast("请先把页面跑在 http 或 https 地址上");
     return;
   }
-  await copyText(buildOcrGuideText(), "截图 OCR 模板已复制", dom.ocrStatus);
+  await copyText(buildOcrGuideText(), "截图 OCR 模板已复制", dom.ocrStatus, "已复制截图 OCR 模板，去快捷指令共享表单里粘贴即可。");
 }
 
 async function copyOcrPreviewLink() {
@@ -3438,7 +3447,7 @@ async function copyOcrPreviewLink() {
     showToast("请先把页面跑在 http 或 https 地址上");
     return;
   }
-  await copyText(buildOcrPreviewTarget(), "OCR 预览地址模板已复制", dom.ocrStatus);
+  await copyText(buildOcrPreviewTarget(), "OCR 预览地址模板已复制", dom.ocrStatus, "已复制 OCR 预览地址，适合先检查再保存。");
 }
 
 function downloadOcrGuide() {
@@ -3485,7 +3494,7 @@ function downloadShortcutGuide() {
   showToast("快捷指令创建模板已下载");
 }
 
-async function copyText(text, successMessage, statusTarget = dom.shortcutStatus) {
+async function copyText(text, successMessage, statusTarget = dom.shortcutStatus, statusMessage = successMessage) {
   const textBytes = backupCore.getTextByteLength(text);
   try {
     if (navigator.clipboard?.writeText) {
@@ -3497,12 +3506,12 @@ async function copyText(text, successMessage, statusTarget = dom.shortcutStatus)
       return false;
     }
     if (statusTarget) {
-      statusTarget.textContent = text;
+      statusTarget.textContent = statusMessage;
       statusTarget.dataset.lockedCopy = "1";
       window.clearTimeout(statusTarget.__copyTimer);
       statusTarget.__copyTimer = window.setTimeout(() => {
         delete statusTarget.dataset.lockedCopy;
-        renderAutomationPanel();
+        renderStatusRegion(statusTarget);
       }, 10_000);
     }
     showToast(successMessage);
@@ -3513,7 +3522,27 @@ async function copyText(text, successMessage, statusTarget = dom.shortcutStatus)
       return false;
     }
     window.prompt("复制下面的内容", text);
+    if (statusTarget) {
+      statusTarget.textContent = `${statusMessage} 如果系统没直接复制成功，刚刚已经弹出手动复制框。`;
+      statusTarget.dataset.lockedCopy = "1";
+      window.clearTimeout(statusTarget.__copyTimer);
+      statusTarget.__copyTimer = window.setTimeout(() => {
+        delete statusTarget.dataset.lockedCopy;
+        renderStatusRegion(statusTarget);
+      }, 10_000);
+    }
+    showToast("系统复制受限，已弹出手动复制框");
     return true;
+  }
+}
+
+function renderStatusRegion(target) {
+  if (target === dom.shortcutStatus) {
+    renderShortcutStatus();
+    return;
+  }
+  if (target === dom.reminderStatus || target === dom.ocrStatus) {
+    renderAutomationPanel();
   }
 }
 

@@ -65,6 +65,10 @@ async function run() {
   assert.match(htmlText, /copyOcrAutoLink/, "设置页应提供截图 OCR 模板入口");
 
   const appText = await readFile(new URL("../app.js", import.meta.url), "utf8");
+  const cssText = await readFile(new URL("../styles.css", import.meta.url), "utf8");
+  assert.match(cssText, /overflow-wrap:\s*anywhere/, "长链接提示区需要允许自动换行");
+  assert.doesNotMatch(appText, /statusTarget\.textContent = text/, "复制状态区不应再注入整段原文");
+  assert.match(appText, /function renderShortcutStatus\(\)/, "快捷指令状态区应支持重置到默认提示");
   const parserSnippet = [
     sliceBetween(appText, "const incomeKeywords =", "const incomeContextRules ="),
     sliceBetween(appText, "const incomeContextRules =", "const expenseContextRules ="),
