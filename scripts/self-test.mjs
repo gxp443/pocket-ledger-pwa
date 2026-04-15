@@ -31,6 +31,14 @@ function createPayload(entryCount) {
   };
 }
 
+function sliceBetween(text, startMarker, endMarker) {
+  const start = text.indexOf(startMarker);
+  const end = text.indexOf(endMarker, start);
+  assert.notEqual(start, -1, `未找到片段起点: ${startMarker}`);
+  assert.notEqual(end, -1, `未找到片段终点: ${endMarker}`);
+  return text.slice(start, end).trim();
+}
+
 async function run() {
   const raw = backupCore.serializeBackupPayload(createPayload(3000), false);
   const encoded = await backupCore.encodeBackupTransfer(raw);
@@ -54,7 +62,20 @@ async function run() {
   assert.match(htmlText, /restoreSnapshotButton/, "页面应提供快照恢复入口");
   assert.match(htmlText, /backup-core\.js/, "页面应先加载 backup-core.js");
 
-  console.log("Self-test passed: backup transfer, cache policy, and backup UI hooks are valid.");
+  const appText = await readFile(new URL("../app.js", import.meta.url), "utf8");
+  const parserSnippet = [
+    sliceBetween(appText, "const incomeKeywords =", "const incomeContextRules ="),
+    sliceBetween(appText, "const incomeContextRules =", "const expenseContextRules ="),
+    sliceBetween(appText, "const expenseContextRules =", "const breakfastFoodKeywords ="),
+    sliceBetween(appText, "function detectType(text) {", "function extractAmount(text) {"),
+  ].join("\n\n");
+  const { detectType } = new Function(`${parserSnippet}\nreturn { detectType };`)();
+
+  assert.equal(detectType("麻将赢200"), "income", "麻将赢应识别为收入");
+  assert.equal(detectType("打牌赢88"), "income", "打牌赢应识别为收入");
+  assert.equal(detectType("麻将输200"), "expense", "麻将输应识别为支出");
+
+  console.log("Self-test passed: backup flow, cache policy, UI hooks, and parser smoke cases are valid.");
 }
 
 run().catch((error) => {

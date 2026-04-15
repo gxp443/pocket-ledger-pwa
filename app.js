@@ -62,7 +62,25 @@ const presets = [
   { label: "零食", amount: 10, categoryKey: "snack", note: "零食" },
 ];
 
-const incomeKeywords = ["工资", "薪资", "收入", "转入", "入账", "收款", "报销", "奖金", "红包", "返现", "退款"];
+const incomeKeywords = ["工资", "薪资", "收入", "转入", "入账", "收款", "报销", "奖金", "红包", "返现", "退款", "赚", "赚了", "赢钱", "赢了", "赢"];
+const incomeContextRules = [
+  { includeAll: ["麻将", "赢"] },
+  { includeAll: ["打牌", "赢"] },
+  { includeAll: ["扑克", "赢"] },
+  { includeAll: ["德州", "赢"] },
+  { includeAll: ["牌局", "赢"] },
+  { includeAll: ["赌球", "赢"] },
+  { includeAll: ["彩票", "中"] },
+];
+const expenseContextRules = [
+  { includeAll: ["麻将", "输"] },
+  { includeAll: ["打牌", "输"] },
+  { includeAll: ["扑克", "输"] },
+  { includeAll: ["德州", "输"] },
+  { includeAll: ["牌局", "输"] },
+  { includeAll: ["赌球", "输"] },
+  { includeAll: ["亏", "了"] },
+];
 const breakfastFoodKeywords = ["早餐", "早饭", "豆浆", "油条", "包子", "馒头", "煎饼", "三明治"];
 const lunchCueKeywords = ["午饭", "午餐", "中饭", "中午", "工作餐"];
 const dinnerCueKeywords = ["晚饭", "晚餐", "晚上", "夜宵", "宵夜", "烧烤", "火锅", "聚餐", "烤肉"];
@@ -1829,7 +1847,28 @@ function parseNaturalText(text) {
 }
 
 function detectType(text) {
+  const semanticType = inferSemanticType(text);
+  if (semanticType) {
+    return semanticType;
+  }
+
   return incomeKeywords.some((keyword) => text.includes(keyword)) ? "income" : "expense";
+}
+
+function inferSemanticType(text) {
+  if (matchesContextRules(text, incomeContextRules)) {
+    return "income";
+  }
+
+  if (matchesContextRules(text, expenseContextRules)) {
+    return "expense";
+  }
+
+  return "";
+}
+
+function matchesContextRules(text, rules) {
+  return rules.some((rule) => rule.includeAll.every((keyword) => text.includes(keyword)));
 }
 
 function extractAmount(text) {
